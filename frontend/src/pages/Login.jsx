@@ -46,7 +46,7 @@ export default function Login() {
                     <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-2 animate-heartbeat shadow-sm">
                         <img src="/favicon.png?v=2" alt="Logo" className="w-10 h-10 object-contain" />
                     </div>
-                    <CardTitle className="text-2xl text-center">Villingili Blood Donors</CardTitle>
+                    <CardTitle className="text-2xl text-center">Blood Donation-Siwad</CardTitle>
                     <CardDescription className="text-center">
                         Official Portal
                     </CardDescription>
