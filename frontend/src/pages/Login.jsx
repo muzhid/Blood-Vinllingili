@@ -56,7 +56,7 @@ export default function Login() {
                                 id="phone"
                                 name="phone"
                                 type="tel"
-                                placeholder="960xxxxxxx"
+                                placeholder="xxxxxxx"
                                 required
                             />
                         </div>
