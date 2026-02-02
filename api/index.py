@@ -689,7 +689,7 @@ async def process_update(data):
                         f"👇 <b>Reply to this message with Donor's Phone Number (7 Digits).</b>\n"
                         f"<span class='tg-spoiler'>REF:{fake_id}</span>"
                     )
-                    reply_markup = {"force_reply": True, "input_field_placeholder": "7xxxxxx / 9xxxxxx"}
+                    reply_markup = {"force_reply": True}
                     
                     from .utils import answer_callback_query, edit_telegram_message, send_telegram_message
                     answer_callback_query(cb_id, "Blood Type Saved")
