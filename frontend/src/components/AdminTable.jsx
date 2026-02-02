@@ -48,7 +48,10 @@ export function AdminTable() {
         try {
             const res = await fetch('/api/update_password', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
                 body: JSON.stringify({
                     username: resetTarget.phone_number || resetTarget.username, // Use Phone as ID
                     new_password: adminNewPass
@@ -76,7 +79,10 @@ export function AdminTable() {
         try {
             const res = await fetch('/api/delete_admin', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
                 body: JSON.stringify({ telegram_id: admin.telegram_id, username: admin.username })
             })
             const data = await res.json()
@@ -100,7 +106,10 @@ export function AdminTable() {
         try {
             const res = await fetch('/api/create_admin', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
                 body: JSON.stringify({ username: newUsername, phone_number: newPhone })
             })
             const data = await res.json()
@@ -124,7 +133,9 @@ export function AdminTable() {
 
     const fetchAdmins = async () => {
         try {
-            const res = await fetch('/api/get_admins')
+            const res = await fetch('/api/get_admins', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            })
             const data = await res.json()
             if (Array.isArray(data)) {
                 setAdmins(data)

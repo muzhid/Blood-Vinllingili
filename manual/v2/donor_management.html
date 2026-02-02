@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donor Management - Blood Donation</title>
+    <!-- <link rel="stylesheet" href="styles.css"> -->
+    <style>
+        :root {
+            --primary: #dc2626;
+            /* Red-600 */
+            --primary-foreground: #ffffff;
+            --background: #f8fafc;
+            --card: #ffffff;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--background);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3 {
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            margin-top: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        p,
+        li {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            /* Larger for mobile reading */
+        }
+
+        ul,
+        ol {
+            padding-left: 1.5rem;
+        }
+
+        code {
+            background-color: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: monospace;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .card {
+            background-color: var(--card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+            padding: 0.75rem 1.5rem;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 0.5rem;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .nav-card {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s;
+        }
+
+        .nav-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            background-color: #fee2e2;
+            color: var(--primary);
+        }
+
+        .note {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 1rem;
+        }
+
+        .warning {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 1rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border: 1px solid var(--border);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .card {
+                padding: 1.25rem;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <header>
+        <a href="index.html" class="back-link">&larr; Back to Menu</a>
+        <h1>📋 Donor Management</h1>
+        <p>Adding and Editing Donors via AI & Graphic Interface.</p>
+    </header>
+
+    <div class="card">
+        <h2>1. Adding Donors via ID Scan (AI)</h2>
+        <p>The fastest way to register a new donor is by scanning their Maldives ID Card.</p>
+        <ol>
+            <li>Go to the <strong>Telegram Admin Group</strong>.</li>
+            <li>Upload a <strong>Photo</strong> of the ID Card.</li>
+            <li>In the caption (or a reply), type <code>/scan</code> (optional, bot usually auto-detects).</li>
+            <li>The AI will extract: <strong>Name, ID Number, Address, Sex, Date of Birth</strong>.</li>
+            <li>The bot will ask you to confirm adding them to the database.</li>
+        </ol>
+        <div class="warning">
+            <strong>Common Issues:</strong>
+            <ul>
+                <li><strong>Glare/Reflection:</strong> Ensure the text is readable.</li>
+                <li><strong>Blur:</strong> Hold the camera steady.</li>
+                <li><strong>Wrong Side:</strong> Upload the front side with the Name/ID.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>2. Adding Donors Manually (GUI)</h2>
+        <p>If ID scanning fails or you need to add someone without a card:</p>
+        <ol>
+            <li>Login to the <strong>Dashboard</strong>.</li>
+            <li>Click the <strong>+ Add User</strong> button (top right).</li>
+            <li>Fill in the required details (Name, Phone, Blood Type).</li>
+            <li>Click <strong>Save</strong>.</li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h2>3. Editing & Deleting</h2>
+        <p>To update a donor's info (e.g. they moved island or changed phone):</p>
+        <ul>
+            <li>Find them in the <strong>User Table</strong>.</li>
+            <li>Click the <strong>Edit (Pencil Icon)</strong>.</li>
+            <li>Update the fields and click <strong>Save Changes</strong>.</li>
+        </ul>
+        <p>To <strong>Delete</strong> a user, click the Trash icon in the Edit menu. <em>Warning: This is
+                permanent.</em></p>
+    </div>
+
+</body>
+
+</html>

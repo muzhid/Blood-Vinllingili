@@ -6,10 +6,19 @@ import {
     getFilteredRowModel,
     flexRender,
 } from '@tanstack/react-table'
-import { ArrowUpDown, Plus, Search } from 'lucide-react'
+import { ArrowUpDown, Plus, Search, Calendar as CalendarIcon, Droplet } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Calendar } from "@/components/ui/calendar"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
+import { format, addMonths, parseISO } from "date-fns"
+import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
     Table,
     TableBody,
@@ -18,6 +27,16 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import { CustomDatePicker } from "@/components/ui/custom-date-picker"
+
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 import { EditUserModal } from './EditUserModal'
 
@@ -28,13 +47,20 @@ export function UserTable() {
     const [selectedUser, setSelectedUser] = useState(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
 
+    // Donation State
+    const [donationUser, setDonationUser] = useState(null)
+    const [donationDate, setDonationDate] = useState(new Date())
+    const [isDonationOpen, setIsDonationOpen] = useState(false)
+
     useEffect(() => {
         fetchUsers()
     }, [])
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch('/api/users')
+            const res = await fetch('/api/users', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            })
             const users = await res.json()
             if (!res.ok) throw new Error("Failed to fetch users")
 
@@ -53,6 +79,40 @@ export function UserTable() {
 
     const handleUpdate = () => {
         fetchUsers() // Refresh data
+    }
+
+    const openDonationModal = (e, user) => {
+        e.stopPropagation() // Prevent row click
+        setDonationUser(user)
+        setDonationDate(new Date())
+        setIsDonationOpen(true)
+    }
+
+    const confirmDonation = async () => {
+        if (!donationUser) return
+
+        try {
+            const formattedDate = format(donationDate, 'yyyy-MM-dd')
+            const res = await fetch('/api/update_last_donation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
+                body: JSON.stringify({ user_id: donationUser.telegram_id, date: formattedDate })
+            })
+            const result = await res.json()
+
+            if (result.status === 'ok') {
+                toast.success(`Donation recorded for ${donationUser.full_name}`)
+                fetchUsers() // Refresh list
+                setIsDonationOpen(false)
+            } else {
+                toast.error(result.message || "Failed to update")
+            }
+        } catch (e) {
+            toast.error("Connection error")
+        }
     }
 
     // ... columns definition ...
@@ -104,7 +164,37 @@ export function UserTable() {
             {
                 accessorKey: 'last_donation_date',
                 header: 'Last Donation',
-                cell: ({ row }) => row.getValue('last_donation_date') || '-',
+                cell: ({ row }) => {
+                    const date = row.getValue('last_donation_date')
+                    if (!date) return <span className="text-muted-foreground">-</span>
+                    return <span>{date}</span>
+                }
+            },
+            {
+                id: 'next_eligible',
+                header: 'Next Eligible',
+                cell: ({ row }) => {
+                    const dateStr = row.getValue('last_donation_date')
+                    const bloodType = row.getValue('blood_type')
+
+                    if (!bloodType) return <span className="text-orange-500 font-bold text-xs">Profile Incomplete</span>
+                    if (!dateStr) return <span className="text-green-600 font-bold text-xs">Available Now</span>
+
+                    const lastDate = new Date(dateStr)
+                    const nextDate = addMonths(lastDate, 3)
+                    const today = new Date()
+
+                    const isEligible = today >= nextDate
+
+                    return (
+                        <div className="flex flex-col">
+                            <span className={isEligible ? "text-green-600 font-bold" : "text-destructive"}>
+                                {format(nextDate, 'dd MMM yyyy')}
+                            </span>
+                            {isEligible && <span className="text-[10px] text-green-600 uppercase">Eligible</span>}
+                        </div>
+                    )
+                }
             },
             {
                 accessorKey: 'role',
@@ -123,6 +213,53 @@ export function UserTable() {
                         {row.getValue('status') || 'active'}
                     </Badge>
                 ),
+            },
+            {
+                id: 'actions',
+                cell: ({ row }) => {
+                    const user = row.original
+
+                    // Logic: Check Eligibility
+                    let isEligible = true
+                    let reason = ""
+
+                    if (!user.blood_type) {
+                        isEligible = false
+                        reason = "No Blood Type"
+                    } else if (user.last_donation_date) {
+                        const lastDate = new Date(user.last_donation_date)
+                        const nextDate = addMonths(lastDate, 3)
+                        if (new Date() < nextDate) {
+                            isEligible = false
+                            reason = "Not Eligible"
+                        }
+                    }
+
+                    if (!isEligible) {
+                        return (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled
+                                className="h-8 px-2 text-[10px] font-medium text-muted-foreground bg-muted/50 w-auto whitespace-nowrap"
+                            >
+                                {reason}
+                            </Button>
+                        )
+                    }
+
+                    return (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 border-red-200 hover:bg-red-50 hover:text-red-600"
+                            onClick={(e) => openDonationModal(e, user)}
+                            title="Mark as Donated"
+                        >
+                            <Droplet className="h-4 w-4 text-red-500 fill-red-500" />
+                        </Button>
+                    )
+                }
             },
         ],
         []
@@ -244,6 +381,43 @@ export function UserTable() {
                     onUpdate={handleUpdate}
                 />
             )}
+
+            {/* Donation Confirmation Modal */}
+            <Dialog open={isDonationOpen} onOpenChange={setIsDonationOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Confirm Donation</DialogTitle>
+                        <DialogDescription>
+                            Mark <b>{donationUser?.full_name}</b> as having donated blood.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="flex flex-col space-y-2">
+                            <CustomDatePicker
+                                selected={donationDate}
+                                onSelect={setDonationDate}
+                            />
+                        </div>
+
+                        <div className="rounded-md bg-muted p-3 text-sm">
+                            <p className="font-medium">Next Eligible Date:</p>
+                            <p className="text-green-600 font-bold text-lg">
+                                {donationDate ? format(addMonths(donationDate, 3), 'PPP') : '-'}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                (Calculated as +3 months from selected date)
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDonationOpen(false)}>Cancel</Button>
+                        <Button onClick={confirmDonation} className="bg-red-600 hover:bg-red-700 text-white">
+                            <Droplet className="mr-2 h-4 w-4" />
+                            Confirm Donation
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

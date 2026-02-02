@@ -72,7 +72,10 @@ export function EditUserModal({ user, onClose, onUpdate }) {
 
             const res = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
                 body: JSON.stringify(payload)
             })
 
@@ -95,7 +98,7 @@ export function EditUserModal({ user, onClose, onUpdate }) {
         const newStatus = formData.status === 'banned' ? 'active' : 'banned'
         try {
             const { error } = await supabase
-                .from('users')
+                .from('villingili_users')
                 .update({ status: newStatus })
                 .eq('telegram_id', user.telegram_id)
 
@@ -115,7 +118,7 @@ export function EditUserModal({ user, onClose, onUpdate }) {
         try {
             // 1. Delete all requests by this user (FK constraint fix)
             const { error: reqError } = await supabase
-                .from('requests')
+                .from('villingili_requests')
                 .delete()
                 .eq('requester_id', user.telegram_id)
 
@@ -123,7 +126,7 @@ export function EditUserModal({ user, onClose, onUpdate }) {
 
             // 2. Delete the user
             const { error } = await supabase
-                .from('users')
+                .from('villingili_users')
                 .delete()
                 .eq('telegram_id', user.telegram_id)
 
@@ -145,7 +148,10 @@ export function EditUserModal({ user, onClose, onUpdate }) {
             // Use Backend API
             const res = await fetch('/api/update_user', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
                 body: JSON.stringify({
                     telegram_id: user.telegram_id,
                     status: isPending ? 'active' : 'pending'

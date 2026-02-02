@@ -28,7 +28,9 @@ export function RequestTable() {
 
     const fetchRequests = async () => {
         try {
-            const res = await fetch('/api/requests')
+            const res = await fetch('/api/requests', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            })
             const requests = await res.json()
             if (!res.ok) throw new Error("Failed to fetch requests")
 

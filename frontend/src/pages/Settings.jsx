@@ -27,7 +27,9 @@ export function Settings() {
 
     const fetchSettings = async () => {
         try {
-            const res = await fetch('/api/settings')
+            const res = await fetch('/api/settings', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            })
             const data = await res.json()
             setSettings({
                 TELEGRAM_BOT_TOKEN: data.TELEGRAM_BOT_TOKEN || '',
@@ -52,7 +54,10 @@ export function Settings() {
         try {
             const res = await fetch('/api/settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
                 body: JSON.stringify(settings)
             })
             const result = await res.json()

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nurse Guide - Blood Donation</title>
+    <!-- <link rel="stylesheet" href="styles.css"> -->
+    <style>
+        :root {
+            --primary: #dc2626;
+            /* Red-600 */
+            --primary-foreground: #ffffff;
+            --background: #f8fafc;
+            --card: #ffffff;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--background);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1,
+        h2,
+        h3 {
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            margin-top: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        p,
+        li {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            /* Larger for mobile reading */
+        }
+
+        ul,
+        ol {
+            padding-left: 1.5rem;
+        }
+
+        code {
+            background-color: #f1f5f9;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: monospace;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .card {
+            background-color: var(--card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--primary);
+            color: var(--primary-foreground);
+            padding: 0.75rem 1.5rem;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 0.5rem;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .nav-card {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s;
+        }
+
+        .nav-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            background-color: #fee2e2;
+            color: var(--primary);
+        }
+
+        .note {
+            background-color: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 1rem;
+        }
+
+        .warning {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 1rem;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 1rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border: 1px solid var(--border);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .card {
+                padding: 1.25rem;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <header>
+        <a href="index.html" class="back-link">&larr; Back to Menu</a>
+        <h1>🏥 Hospital Guide</h1>
+        <p>For Nurses & Medical Staff.</p>
+    </header>
+
+    <div class="card">
+        <h2>1. Accessing the Portal</h2>
+        <p>Login to the web dashboard using the credentials provided by your IT admin.</p>
+        <p>You will see the <strong>User Table</strong> containing all registered donors.</p>
+    </div>
+
+    <div class="card">
+        <h2>2. Finding a Donor</h2>
+        <p>Use the <strong>Search Bar</strong> at the top of the table to find a donor by:</p>
+        <ul>
+            <li>Name</li>
+            <li>Phone Number</li>
+            <li>ID Card Number</li>
+        </ul>
+        <p>You can also sort the table by <strong>Blood Type</strong>.</p>
+    </div>
+
+    <div class="card">
+        <h2>3. Marking a Donation</h2>
+        <p>When a donor successfully donates blood:</p>
+        <ol>
+            <li>Find their row in the table.</li>
+            <li>Click the <span class="badge" style="background:#22c55e; color:white;">Mark Donated</span> button.</li>
+            <li>Select the <strong>Date of Donation</strong> from the calendar popup.</li>
+            <li>Click <strong>Confirm</strong>.</li>
+        </ol>
+        <div class="note">
+            <strong>System Logic:</strong> The system will automatically calculate their <em>Next Eligible Date</em> (3
+            months from today) and mark their status accordingly.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>4. Eligibility Status</h2>
+        <p>The table shows color-coded indicators:</p>
+        <ul>
+            <li><span class="badge" style="background:#22c55e; color:white;">Eligible</span> - Can donate now.</li>
+            <li><span class="badge" style="background:#f59e0b; color:white;">Wait</span> - Recently donated. Check "Next
+                Eligible" column.</li>
+        </ul>
+    </div>
+
+</body>
+
+</html>

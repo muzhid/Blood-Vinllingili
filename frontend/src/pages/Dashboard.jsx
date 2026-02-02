@@ -6,6 +6,7 @@ import { UserTable } from '../components/UserTable'
 import { RequestTable } from '../components/RequestTable'
 import { CommandTable } from '../components/CommandTable'
 import { AdminTable } from '../components/AdminTable'
+import { Sidebar } from '../components/Sidebar'
 import { Settings } from './Settings'
 
 import { Button } from "@/components/ui/button"
@@ -70,7 +71,10 @@ export default function Dashboard() {
         try {
             const res = await fetch('/api/update_password', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                },
                 body: JSON.stringify({ username: user.phone_number || user.username, new_password: newPass })
             })
             const data = await res.json()
@@ -87,63 +91,16 @@ export default function Dashboard() {
         }
     }
 
-    const SidebarContent = ({ mobile = false }) => (
-        <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground transition-all duration-300">
-            <div className={`h-16 flex items-center border-b border-sidebar-border bg-sidebar ${mobile || !isCollapsed ? 'px-6' : 'justify-center'}`}>
-                {mobile || !isCollapsed ? (
-                    <div className="text-xl font-bold tracking-tight truncate">Blood Donation</div>
-                ) : (
-                    <Activity className="w-6 h-6 text-primary" />
-                )}
-            </div>
-            <nav className="flex-1 p-2 space-y-2">
-                <Button
-                    variant={activeTab === 'users' ? "secondary" : "ghost"}
-                    className={`w-full justify-start ${!mobile && isCollapsed ? 'px-2 justify-center' : ''}`}
-                    onClick={() => { setActiveTab('users'); if (mobile) setIsSidebarOpen(false); }}
-                    title="User Management"
-                >
-                    <Users className={`w-5 h-5 ${mobile || !isCollapsed ? 'mr-2' : ''}`} />
-                    {(mobile || !isCollapsed) && <span>User Management</span>}
-                </Button>
-                <Button
-                    variant={activeTab === 'feed' ? "secondary" : "ghost"}
-                    className={`w-full justify-start ${!mobile && isCollapsed ? 'px-2 justify-center' : ''}`}
-                    onClick={() => { setActiveTab('feed'); if (mobile) setIsSidebarOpen(false); }}
-                    title="Live Feed"
-                >
-                    <Activity className={`w-5 h-5 ${mobile || !isCollapsed ? 'mr-2' : ''}`} />
-                    {(mobile || !isCollapsed) && <span>Live Feed</span>}
-                </Button>
-                <Button
-                    variant={activeTab === 'settings' ? "secondary" : "ghost"}
-                    className={`w-full justify-start ${!mobile && isCollapsed ? 'px-2 justify-center' : ''}`}
-                    onClick={() => { setActiveTab('settings'); if (mobile) setIsSidebarOpen(false); }}
-                    title="Settings"
-                >
-                    <SettingsIcon className={`w-5 h-5 ${mobile || !isCollapsed ? 'mr-2' : ''}`} />
-                    {(mobile || !isCollapsed) && <span>Settings</span>}
-                </Button>
-            </nav>
-            <div className="p-2 border-t border-sidebar-border">
-                <Button
-                    variant="ghost"
-                    className={`w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent ${!mobile && isCollapsed ? 'px-2 justify-center' : ''}`}
-                    onClick={handleLogout}
-                    title="Logout"
-                >
-                    <LogOut className={`w-5 h-5 ${mobile || !isCollapsed ? 'mr-2' : ''}`} />
-                    {(mobile || !isCollapsed) && <span>Logout</span>}
-                </Button>
-            </div>
-        </div>
-    )
-
     return (
         <div className="flex h-screen bg-background overflow-hidden text-foreground">
             {/* Desktop Sidebar */}
             <div className={`hidden md:block border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-52'}`}>
-                <SidebarContent />
+                <Sidebar
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    isCollapsed={isCollapsed}
+                    handleLogout={handleLogout}
+                />
             </div>
 
             {/* Main Content */}
@@ -161,7 +118,14 @@ export default function Dashboard() {
                                     </Button>
                                 </SheetTrigger>
                                 <SheetContent side="left" className="p-0 border-r-0 bg-sidebar text-sidebar-foreground w-56">
-                                    <SidebarContent mobile={true} />
+                                    <Sidebar
+                                        activeTab={activeTab}
+                                        setActiveTab={setActiveTab}
+                                        isCollapsed={false}
+                                        mobile={true}
+                                        setIsSidebarOpen={setIsSidebarOpen}
+                                        handleLogout={handleLogout}
+                                    />
                                 </SheetContent>
                             </Sheet>
                         </div>

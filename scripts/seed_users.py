@@ -1,12 +1,25 @@
+
 import os
 import random
 import time
-from api.local_db import LocalDB
 import sys
-# Add parent dir to path to find api
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# Add parent dir to path if needed, though we handle imports directly here
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-supabase = LocalDB()
+load_dotenv()
+
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+
+if not url or not key:
+    print("Error: Missing SUPABASE_URL or SUPABASE_KEY in .env")
+    sys.exit(1)
+
+supabase: Client = create_client(url, key)
 
 BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 SEXES = ["Male", "Female"]
@@ -15,15 +28,16 @@ NAMES_FIRST = ["Ahmed", "Mohamed", "Ali", "Hassan", "Ibrahim", "Abdullah", "Fath
 NAMES_LAST = ["Maniku", "Sattar", "Didi", "Rasheed", "Shareef", "Nazeer", "Latheef", "Jameel", "Hussain", "Fulhu"]
 
 def generate_phone():
-    # 7-digit random number starting with 900 to ensure it's fake
-    return f"900{random.randint(1000, 9999)}"
+    # 7-digit random number starting with 9 (Maldives mobile) - 9XXXXXX
+    # Increased range to avoid collisions
+    return f"9{random.randint(100000, 999999)}"
 
 def generate_id_card():
     # Format: AXXXXXX
     return f"A{random.randint(100000, 999999)}"
 
-def seed_users(count=30):
-    print(f"Seeding {count} users...")
+def seed_users(count=50):
+    print(f"Seeding {count} users to 'villingili_users'...")
     users = []
     
     for i in range(count):
@@ -32,7 +46,8 @@ def seed_users(count=30):
         full_name = f"{first} {last}"
         
         # Unique telegram ID (simulated)
-        telegram_id = int(str(time.time()).replace('.', '')[-9:]) + i
+        # Base it on a fixed high number + index to guarantee uniqueness in this batch
+        telegram_id = 1000000000 + (int(time.time()) % 100000) * 100 + i
         
         user = {
             "telegram_id": telegram_id,
@@ -45,14 +60,14 @@ def seed_users(count=30):
             "status": "active",
             "role": "user",
             # Random date in last 2 years or None
-            "last_donation_date": f"202{random.randint(4,5)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}" if random.random() > 0.3 else None
+            "last_donation_date": (datetime.now() - timedelta(days=random.randint(0, 700))).strftime("%Y-%m-%d") if random.random() > 0.3 else None
         }
         users.append(user)
 
     try:
         # Insert in batches to be safe
-        data = supabase.table("users").upsert(users).execute()
-        print(f"Successfully inserted/updated {len(data.data)} users.")
+        data = supabase.table("villingili_users").upsert(users).execute()
+        print(f"Successfully inserted/updated {len(data.data)} dummy users.")
     except Exception as e:
         print(f"Error seeding users: {e}")
 

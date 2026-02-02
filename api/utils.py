@@ -7,7 +7,8 @@ from .local_db import LocalDB
 
 def get_supabase_client():
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
+    # Prefer Service Role Key (Admin) if available, else fall back to Anon Key
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
     
     # Use real Supabase if configured and NOT pointing to localhost (unless intended)
     # Simple check: if we have keys and it's not the default placeholder
@@ -186,20 +187,36 @@ def analyze_id_card_with_ai(image_url: str):
     client = OpenAI(api_key=api_key)
     
     prompt = """
-    Analyze this image. Is it a Maldives National Identity Card?
-    If NO, return {"is_valid": false}.
-    If YES, extract:
-    - full_name (English Name)
-    - id_card_number (e.g., A123456)
-    - sex (M or F)
-    - address (English Address part only, typically at bottom left)
+    Analyze this image carefully. It MUST be a "Maldives National Identity Card".
     
-    Return JSON: {"is_valid": true, "full_name": "...", "id_card_number": "...", "sex": "...", "address": "..."}
+    1. **Validation Checks**:
+       - MUST show text "REPUBLIC OF MALDIVES" at the top.
+       - MUST show header "NATIONAL IDENTITY CARD".
+       - Text must be legible. If there is significant GLARE, REFLECTION, or BLUR preventing reading, return error "UNCLEAR".
+       - If it is NOT a Maldives ID card (e.g. random photo, selfie, other object), return error "NOT_ID".
+
+    2. **Extraction** (Only if Valid):
+       - full_name (English Name)
+       - id_card_number (Format: A followed by 6 digits, e.g. A123456)
+       - sex (M or F)
+       - address (English Address part only, ignore Dhivehi)
+       - date_of_birth (DD/MM/YYYY) - Extract this for verification.
+
+    Return JSON: 
+    {
+        "is_valid": true/false, 
+        "error": null or "NOT_ID" or "UNCLEAR",
+        "full_name": "...", 
+        "id_card_number": "...", 
+        "sex": "...", 
+        "address": "...",
+        "date_of_birth": "..."
+    }
     """
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",

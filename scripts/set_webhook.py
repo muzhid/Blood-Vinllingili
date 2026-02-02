@@ -1,7 +1,7 @@
 import requests
 import os
 
-token = "8226446742:AAFe-8deuzQnP4NZFiOnVedZ2Kd1LnXlJJk"
+token = "8477117989:AAFwETDBTxBZMkjvrHHcpPtYJx5ssyYourw"
 url = "https://naifaru-blood-donors.vercel.app/api/webhook"
 
 print(f"Setting webhook to: {url}")

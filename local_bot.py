@@ -1,10 +1,10 @@
 import asyncio
 import os
-from api.index import process_update
 from dotenv import load_dotenv
-import requests
-
 load_dotenv()
+
+from api.index import process_update
+import requests
 
 async def main():
     offset = 0

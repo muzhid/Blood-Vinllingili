@@ -5,3 +5,6 @@ openai
 uvicorn
 python-dotenv
 requests
+passlib[bcrypt]
+bcrypt==3.2.2
+pyjwt

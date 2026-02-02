@@ -12,6 +12,45 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 import os
+import jwt
+from datetime import datetime, timedelta
+from passlib.context import CryptContext
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status
+
+# Security Config
+SECRET_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") # Using Service Key as Secret implies robust secret, or use a dedicated one.
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        # Check for special migration token if needed, or just standard JWT
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return username
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,22 +78,22 @@ def home():
     return {"message": "Blood Donation Bot API is running"}
 
 @app.get("/api/users")
-def get_users():
+def get_users(current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
-    res = supabase.table("users").select("*").order("created_at", desc=True).execute()
+    res = supabase.table("villingili_users").select("*").order("created_at", desc=True).execute()
     return res.data
 
 @app.get("/api/requests")
-def get_requests():
+def get_requests(current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
-    res = supabase.table("requests").select("*").order("created_at", desc=True).limit(50).execute()
+    res = supabase.table("villingili_requests").select("*").order("created_at", desc=True).limit(50).execute()
     requests = res.data
     
     # Manual Join to populate requester info
     for req in requests:
         user_id = req.get("requester_id")
         if user_id:
-            user_res = supabase.table("users").select("full_name, phone_number").eq("telegram_id", user_id).execute()
+            user_res = supabase.table("villingili_users").select("full_name, phone_number").eq("telegram_id", user_id).execute()
             if user_res.data:
                 req["requester"] = user_res.data[0]
             else:
@@ -95,7 +134,7 @@ def cron_expire():
     # For MVP: Fetch all active, filter loop.
     
     try:
-        active_reqs = supabase.table("requests").select("*").eq("is_active", True).execute()
+        active_reqs = supabase.table("villingili_requests").select("*").eq("is_active", True).execute()
         if not active_reqs.data:
             return {"status": "ok", "count": 0}
             
@@ -107,7 +146,7 @@ def cron_expire():
             created_at = datetime.fromisoformat(req["created_at"].replace('Z', '+00:00'))
             if now - created_at > timedelta(minutes=30):
                 # Expire it
-                supabase.table("requests").update({"is_active": False}).eq("id", req["id"]).execute()
+                supabase.table("villingili_requests").update({"is_active": False}).eq("id", req["id"]).execute()
                 expired_count += 1
                 
                 # Update Telegram Message
@@ -146,7 +185,7 @@ class UserUpdate(BaseModel):
     status: str = None
 
 @app.post("/api/update_user")
-async def update_user_api(user: UserUpdate):
+async def update_user_api(user: UserUpdate, current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     if not supabase: return {"error": "DB Failed"}
     
@@ -157,12 +196,12 @@ async def update_user_api(user: UserUpdate):
         # Check Phone Conflict logic (retained)
         if "phone_number" in data:
              phone = data["phone_number"]
-             conflict = supabase.table("users").select("*").eq("phone_number", phone).neq("telegram_id", tid).execute()
+             conflict = supabase.table("villingili_users").select("*").eq("phone_number", phone).neq("telegram_id", tid).execute()
              if conflict.data:
                   other_u = conflict.data[0]
                   curr_name = data.get("full_name")
                   if not curr_name:
-                       curr_u = supabase.table("users").select("full_name").eq("telegram_id", tid).execute()
+                       curr_u = supabase.table("villingili_users").select("full_name").eq("telegram_id", tid).execute()
                        if curr_u.data: curr_name = curr_u.data[0].get('full_name')
                   
                   c_low = (curr_name or "").lower().strip()
@@ -177,15 +216,15 @@ async def update_user_api(user: UserUpdate):
                   
                   if name_match and not id_conflict:
                        old_id = other_u['telegram_id']
-                       supabase.table("users").update({"phone_number": f"{phone}_old_{old_id}"}).eq("telegram_id", old_id).execute()
-                       supabase.table("requests").update({"requester_id": tid}).eq("requester_id", old_id).execute()
-                       supabase.table("users").delete().eq("telegram_id", old_id).execute()
+                       supabase.table("villingili_users").update({"phone_number": f"{phone}_old_{old_id}"}).eq("telegram_id", old_id).execute()
+                       supabase.table("villingili_requests").update({"requester_id": tid}).eq("requester_id", old_id).execute()
+                       supabase.table("villingili_users").delete().eq("telegram_id", old_id).execute()
                   else:
                        msg = f"Phone taken by {other_u.get('full_name')}"
                        if id_conflict: msg += " (ID Mismatch)"
                        return {"status": "error", "detail": msg}
 
-        supabase.table("users").update(data).eq("telegram_id", tid).execute()
+        supabase.table("villingili_users").update(data).eq("telegram_id", tid).execute()
         return {"status": "ok"}
     except Exception as e:
         print(f"Update Error: {e}")
@@ -204,17 +243,40 @@ async def admin_login_api(creds: AdminLogin):
         supabase = get_supabase_client()
         if not supabase: return {"error": "DB Failed"}
         
-        # Check Phone
-        res = supabase.table("admin_users").select("*").eq("phone_number", creds.username).eq("password", creds.password).execute()
+        # 1. Fetch user by Phone OR Username
+        # We fetch the HASHED password (or plain text if not migrated yet)
+        user_res = supabase.table("villingili_admin_users").select("*").eq("phone_number", creds.username).execute()
+        if not user_res.data:
+             user_res = supabase.table("villingili_admin_users").select("*").eq("username", creds.username).execute()
         
-        # Check Username if Phone failed
-        if not res.data:
-             res = supabase.table("admin_users").select("*").eq("username", creds.username).eq("password", creds.password).execute()
-
-        if res.data:
-            admin = res.data[0]
+        if not user_res.data:
+            return {"status": "error", "message": "User not found"}
+            
+        admin = user_res.data[0]
+        stored_pw = admin["password"]
+        
+        # 2. Verify Password (Handle Legacy Plain Text vs Bcrypt)
+        is_valid = False
+        try:
+            # Try verifying as hash
+            if verify_password(creds.password, stored_pw):
+                is_valid = True
+        except:
+            # Fallback for legacy plain text (temporary migration logic)
+            if stored_pw == creds.password:
+                is_valid = True
+                # Auto-migrate to hash?!
+                new_hash = get_password_hash(stored_pw)
+                supabase.table("villingili_admin_users").update({"password": new_hash}).eq("id", admin["id"]).execute()
+        
+        if is_valid:
+            # 3. Generate Token
+            access_token = create_access_token(data={"sub": admin["username"], "role": "admin"})
+            
             return {
                 "status": "ok",
+                "access_token": access_token, 
+                "token_type": "bearer",
                 "user": {
                     "username": admin["username"],
                     "phone_number": admin["phone_number"],
@@ -222,13 +284,14 @@ async def admin_login_api(creds: AdminLogin):
                     "telegram_id": admin["telegram_id"]
                 }
             }
-        return {"status": "error", "message": "Invalid Credentials (User not found or Wrong Password)"}
+            
+        return {"status": "error", "message": "Invalid Password"}
     except Exception as e:
         print(f"Login Error: {e}")
         return {"status": "error", "message": f"Server Error: {str(e)}"}
 
 @app.get("/api/get_admins")
-async def get_admins_api():
+async def get_admins_api(current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     if not supabase:
         print("DB Connection Failed in get_admins")
@@ -237,7 +300,7 @@ async def get_admins_api():
     # Security: This should verify header token actually, but we are skipping for MVP speed
     # Assuming Frontend only calls this if logged in. 
     # (In prod, add Auth Header check)
-    res = supabase.table("admin_users").select("telegram_id, username, phone_number, password, created_at").execute() 
+    res = supabase.table("villingili_admin_users").select("telegram_id, username, phone_number, password, created_at").execute() 
     
     if not res.data: return []
 
@@ -246,12 +309,12 @@ async def get_admins_api():
         if admin.get("phone_number") == "Linked" and admin.get("telegram_id"):
             # Try to resolve
             try:
-                user_res = supabase.table("users").select("phone_number").eq("telegram_id", admin["telegram_id"]).execute()
+                user_res = supabase.table("villingili_users").select("phone_number").eq("telegram_id", admin["telegram_id"]).execute()
                 if user_res.data and user_res.data[0].get("phone_number"):
                      real_phone = user_res.data[0]["phone_number"]
                      admin["phone_number"] = real_phone
                      # Self-heal
-                     supabase.table("admin_users").update({"phone_number": real_phone}).eq("telegram_id", admin["telegram_id"]).execute()
+                     supabase.table("villingili_admin_users").update({"phone_number": real_phone}).eq("telegram_id", admin["telegram_id"]).execute()
             except:
                 pass
                 
@@ -262,7 +325,7 @@ class PasswordUpdate(BaseModel):
     new_password: str
 
 @app.post("/api/update_password")
-async def update_password_api(body: PasswordUpdate):
+async def update_password_api(body: PasswordUpdate, current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     if not supabase: return {"error": "DB Failed"}
 
@@ -281,12 +344,15 @@ async def update_password_api(body: PasswordUpdate):
     
     identifier = body.username 
     # If frontend sends phone in username field:
-    res = supabase.table("admin_users").update({"password": body.new_password}).eq("phone_number", identifier).execute()
+    # HASH THE PASSWORD BEFORE SAVING!
+    hashed_pw = get_password_hash(body.new_password)
+    
+    res = supabase.table("villingili_admin_users").update({"password": hashed_pw}).eq("phone_number", identifier).execute()
     
     if res.data:
         return {"status": "ok"}
     # Fallback try username if phone failed (migration support)
-    res = supabase.table("admin_users").update({"password": body.new_password}).eq("username", identifier).execute()
+    res = supabase.table("villingili_admin_users").update({"password": hashed_pw}).eq("username", identifier).execute()
     if res.data: return {"status": "ok"}
 
     return {"status": "error", "message": "User not found"}
@@ -296,12 +362,12 @@ class AdminCreate(BaseModel):
     phone_number: str
 
 @app.post("/api/create_admin")
-async def create_admin_api(body: AdminCreate):
+async def create_admin_api(body: AdminCreate, current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     if not supabase: return {"error": "DB Failed"}
     
     # Check if exists (Check PHONE)
-    exists = supabase.table("admin_users").select("id").eq("phone_number", body.phone_number).execute()
+    exists = supabase.table("villingili_admin_users").select("id").eq("phone_number", body.phone_number).execute()
     if exists.data: return {"status": "error", "message": "Phone Number already registered"}
     
     from datetime import datetime
@@ -309,21 +375,25 @@ async def create_admin_api(body: AdminCreate):
     # We use a timestamp-based ID to ensure uniqueness for manual users
     fake_id = int(datetime.now().timestamp() * 1000)
     
+    # Hash default password
+    hashed_pw = get_password_hash("Password1")
+    
     data = {
         "username": body.username,
         "phone_number": body.phone_number,
-        "password": "Password1", # Default as requested
+        "password": hashed_pw, # Hashed!
         "telegram_id": fake_id,
         "created_at": datetime.now().isoformat()
     }
     try:
-        supabase.table("admin_users").insert(data).execute()
+        supabase.table("villingili_admin_users").insert(data).execute()
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 async def process_update(data):
+    from .utils import send_telegram_message
     supabase = get_supabase_client()
     print(f"DEBUG: process_update called with keys: {list(data.keys())}", flush=True)
     if not supabase:
@@ -344,7 +414,7 @@ async def process_update(data):
         
         # Check registration
         try:
-            user_query = supabase.table("users").select("*").eq("telegram_id", user_id).execute()
+            user_query = supabase.table("villingili_users").select("*").eq("telegram_id", user_id).execute()
             user = user_query.data[0] if user_query.data else None
         except Exception as e:
             print(f"DEBUG: User check failed: {e}")
@@ -374,7 +444,7 @@ async def process_update(data):
             
             if user_data:
                 # Execute Update
-                supabase.table("users").upsert(user_data).execute()
+                supabase.table("villingili_users").upsert(user_data).execute()
                 # Clean cache
                 del PENDING_SCANS[fake_tg_id]
                 
@@ -433,10 +503,10 @@ async def process_update(data):
                 b_type = parts[3]
                 
                 # Update User
-                supabase.table("users").update({"blood_type": b_type}).eq("telegram_id", fake_id).execute()
+                supabase.table("villingili_users").update({"blood_type": b_type}).eq("telegram_id", fake_id).execute()
                 
                 # Fetch User Data (Name & Phone)
-                u_res = supabase.table("users").select("full_name", "phone_number").eq("telegram_id", fake_id).execute()
+                u_res = supabase.table("villingili_users").select("full_name", "phone_number").eq("telegram_id", fake_id).execute()
                 u_data = u_res.data[0] if u_res.data else {}
                 u_name = u_data.get("full_name", "User")
                 phone = u_data.get("phone_number")
@@ -520,7 +590,7 @@ async def process_update(data):
             # 1. Fetch & Send Donor List
             try:
                 # Exclude self? .neq("telegram_id", user_id)
-                donors = supabase.table("users").select("full_name, phone_number").eq("blood_type", blood_type).eq("status", "active").execute()
+                donors = supabase.table("villingili_users").select("full_name, phone_number").eq("blood_type", blood_type).eq("status", "active").execute()
                 donor_list = donors.data
                 
                 if donor_list:
@@ -552,7 +622,7 @@ async def process_update(data):
                      "urgency": urgency,
                      "is_active": True
                 }
-                res = supabase.table("requests").insert(req_data).execute()
+                res = supabase.table("villingili_requests").insert(req_data).execute()
                 req_id = res.data[0]['id']
                 
                 # Broadcast to Channel
@@ -567,12 +637,12 @@ async def process_update(data):
                           ]]
                      }
                      # Send to channel
-                     sent = send_telegram_message(channel_id, msg_text, reply_markup=keyboard)
+                     sent = send_telegram_message(channel_id, msg_text)
                      
                      # Store message ID
                      if sent and sent.get("ok"):
                         msg_id = sent["result"]["message_id"]
-                        supabase.table("requests").update({"telegram_message_id": msg_id}).eq("id", req_id).execute()
+                        supabase.table("villingili_requests").update({"telegram_message_id": msg_id}).eq("id", req_id).execute()
 
                 # send_telegram_message(chat_id, f"✅ Request Sent to Channel")
                 return
@@ -588,29 +658,73 @@ async def process_update(data):
         if data_str.startswith("req_loc_"):
              return # Disabled logic
 
-        # 1. Set Blood Type
+        if data_str.startswith("admin_set_blood_"):
+            parts = data_str.split("_")
+            # format: admin_set_blood_{fake_id}_{type}
+            if len(parts) >= 5:
+                fake_id = parts[3]
+                b_type = parts[4]
+                
+                # Update User Draft
+                supabase.table("villingili_users").update({"blood_type": b_type}).eq("telegram_id", fake_id).execute()
+                
+                
+                # Fetch Data for Confirmation
+                print(f"DEBUG: Fetching user for confirmation: {fake_id}")
+                try:
+                    u_res = supabase.table("villingili_users").select("full_name, id_card_number, address").eq("telegram_id", fake_id).execute()
+                except Exception as e:
+                    print(f"DEBUG: User Update Fetch Error: {e}")
+                    send_telegram_message(chat_id, "⚠️ Error fetching user data. Please scan again.")
+                    return
+
+                if u_res.data:
+                    u = u_res.data[0]
+                    # Ask for Phone
+                    msg_text = (
+                        f"✅ <b>Details Confirmed</b>\n\n"
+                        f"👤 Name: {u.get('full_name')}\n"
+                        f"🆔 ID: {u.get('id_card_number')}\n"
+                        f"🩸 Blood: <b>{b_type}</b>\n\n"
+                        f"👇 <b>Reply to this message with Donor's Phone Number (7 Digits).</b>\n"
+                        f"<span class='tg-spoiler'>REF:{fake_id}</span>"
+                    )
+                    reply_markup = {"force_reply": True, "input_field_placeholder": "7xxxxxx / 9xxxxxx"}
+                    
+                    from .utils import answer_callback_query, edit_telegram_message, send_telegram_message
+                    answer_callback_query(cb_id, "Blood Type Saved")
+                    
+                    # We can't edit a message to have force_reply (Telegram restriction, usually needs new message).
+                    # Actually we can edit the text, but force_reply is an output_message_option, not inline keyboard. 
+                    # ForceReply only works on SEND message.
+                    # So we delete (or edit to 'Saved') and SEND new one.
+                    
+                    edit_telegram_message(chat_id, cb["message"]["message_id"], f"✅ <b>Blood Type: {b_type} Selected.</b>")
+                    send_telegram_message(chat_id, msg_text, reply_markup=reply_markup)
+            return
+
         if data_str.startswith("set_blood_"):
-            # Answer callback immediately
+            # ID Card Registration Flow: parse stored ID and blood type
             from .utils import answer_callback_query
             answer_callback_query(cb_id)
             
             b_type = data_str.split("_")[2]
-            supabase.table("users").update({"blood_type": b_type}).eq("telegram_id", user_id).execute()
+            supabase.table("villingili_users").update({"blood_type": b_type}).eq("telegram_id", user_id).execute()
             
             # CHECK FOR PENDING REQUEST (Deferred Help)
-            u_res = supabase.table("users").select("full_name, phone_number, pending_request_id").eq("telegram_id", user_id).single().execute()
+            u_res = supabase.table("villingili_users").select("full_name, phone_number, pending_request_id").eq("telegram_id", user_id).single().execute()
             if u_res.data and u_res.data.get("pending_request_id"):
                 p_req_id = u_res.data["pending_request_id"]
                 
                 # Execute Help Logic
                 try:
-                    req_query = supabase.table("requests").select("*").eq("id", p_req_id).execute()
+                    req_query = supabase.table("villingili_requests").select("*").eq("id", p_req_id).execute()
                     if req_query.data:
                         req = req_query.data[0]
                         requester_id = req["requester_id"]
                         
                         # Exchange Info
-                        requester_info = supabase.table("users").select("full_name, phone_number").eq("telegram_id", requester_id).single().execute()
+                        requester_info = supabase.table("villingili_users").select("full_name, phone_number").eq("telegram_id", requester_id).single().execute()
                         if requester_info.data:
                             r_name = requester_info.data.get("full_name")
                             r_phone = requester_info.data.get("phone_number")
@@ -626,7 +740,7 @@ async def process_update(data):
                             
                             # Update Count & Notify Channel
                             new_count = (req.get("donors_found") or 0) + 1
-                            supabase.table("requests").update({"donors_found": new_count}).eq("id", p_req_id).execute()
+                            supabase.table("villingili_requests").update({"donors_found": new_count}).eq("id", p_req_id).execute()
                             
                             import os
                             channel_id = os.environ.get("TELEGRAM_CHANNEL_ID")
@@ -634,7 +748,7 @@ async def process_update(data):
                                 send_telegram_message(channel_id, f"🦸♂️ <b>{d_name}</b> offered to help a pending request!")
                                 
                             # Clear Pending
-                            supabase.table("users").update({"pending_request_id": None}).eq("telegram_id", user_id).execute()
+                            supabase.table("villingili_users").update({"pending_request_id": None}).eq("telegram_id", user_id).execute()
                             return
                 except Exception as e:
                     print(f"Deferred Help Error: {e}")
@@ -655,7 +769,7 @@ async def process_update(data):
             answer_callback_query(cb_id)
             
             sex = data_str.split("_")[2]
-            supabase.table("users").update({"sex": sex}).eq("telegram_id", user_id).execute()
+            supabase.table("villingili_users").update({"sex": sex}).eq("telegram_id", user_id).execute()
             
             keyboard = {
                 "inline_keyboard": [[{"text": "🔙 Back to Profile", "callback_data": "refresh_profile"}]]
@@ -665,7 +779,7 @@ async def process_update(data):
             edit_telegram_message(chat_id, msg_id, f"✅ Sex Updated to <b>{sex}</b>", reply_markup=keyboard)
             return
              
-        if data_str.startswith("help_"):
+        if data_str.startswith("help_") and False: # Disabled Feature
             request_id = data_str.split("_")[1]
             
             # Check Donor Profile
@@ -677,7 +791,7 @@ async def process_update(data):
             # Process Help
             try:
                 # Get Request
-                req_query = supabase.table("requests").select("*").eq("id", request_id).execute()
+                req_query = supabase.table("villingili_requests").select("*").eq("id", request_id).execute()
                 if not req_query.data:
                     from .utils import answer_callback_query
                     answer_callback_query(cb_id, text="⚠️ Request not found or expired.", show_alert=True)
@@ -700,7 +814,7 @@ async def process_update(data):
                 requester_id = req["requester_id"]
                 
                 # Exchange Info
-                requester_info = supabase.table("users").select("full_name, phone_number").eq("telegram_id", requester_id).single().execute()
+                requester_info = supabase.table("villingili_users").select("full_name, phone_number").eq("telegram_id", requester_id).single().execute()
                 
                 if requester_info.data:
                     r_name = requester_info.data.get("full_name")
@@ -725,7 +839,7 @@ async def process_update(data):
                     
                     # Update Count
                     new_count = (req.get("donors_found") or 0) + 1
-                    supabase.table("requests").update({"donors_found": new_count}).eq("id", request_id).execute()
+                    supabase.table("villingili_requests").update({"donors_found": new_count}).eq("id", request_id).execute()
             except Exception as e:
                 print(f"Help Error: {e}")
                 
@@ -776,13 +890,13 @@ async def process_update(data):
              answer_callback_query(cb_id, "Refreshing...")
              
              # Re-fetch user
-             user_q = supabase.table("users").select("*").eq("telegram_id", user_id).execute()
+             user_q = supabase.table("villingili_users").select("*").eq("telegram_id", user_id).execute()
              if user_q.data:
                  u = user_q.data[0]
                  msg_text = (
                      f"👤 <b>Verified Profile</b>\n\n"
                      f"📛 <b>Name:</b> {u.get('full_name')}\n"
-                     f"🩸 <b>Blood Type:</b> {u.get('blood_type') or 'Not Set'}\n"
+                     f"🩸 <b>Blood:</b> {u.get('blood_type') or 'Not Set'}\n"
                      f"⚧ <b>Sex:</b> {u.get('sex') or 'Not Set'}\n"
                      f"🆔 <b>ID Card:</b> {u.get('id_card_number') or 'Not Set'}\n"
                      f"🏠 <b>Address:</b> {u.get('address') or 'Not Set'}\n"
@@ -803,7 +917,7 @@ async def process_update(data):
              target_id = data_str.split("_")[2]
              
              # Activate
-             supabase.table("users").update({"status": "active"}).eq("telegram_id", target_id).execute()
+             supabase.table("villingili_users").update({"status": "active"}).eq("telegram_id", target_id).execute()
              
              # Notify Admin
              from .utils import edit_telegram_message, answer_callback_query
@@ -825,7 +939,7 @@ async def process_update(data):
              target_id = data_str.split("_")[2]
              
              # Deactivate (Set to pending to satisfy DB constraint)
-             supabase.table("users").update({"status": "pending"}).eq("telegram_id", target_id).execute()
+             supabase.table("villingili_users").update({"status": "pending"}).eq("telegram_id", target_id).execute()
              
              # Notify Admin
              from .utils import edit_telegram_message, answer_callback_query
@@ -859,8 +973,15 @@ async def process_update(data):
                             
 
 
-        # ADMIN ACCESS COMMAND (Global)
+        # ADMIN ACCESS COMMAND (Restricted to Admin Group)
         if text == "/admin_access" or text == "/reset_password":
+            import os
+            env_grp = os.environ.get("TELEGRAM_ADMIN_GROUP_ID")
+            # Default to a dummy if not set to prevent authorized access by mistake, or handle error
+            if not env_grp or str(chat_id) != str(env_grp):
+                 # Ignore if not in correct group
+                 return
+
             target_id = user_id
             target_name = msg.get("from", {}).get("first_name", "User")
             target_user = msg.get("from", {}).get("username", target_name)
@@ -883,7 +1004,7 @@ async def process_update(data):
             try:
                 import time
                 # Fetch real phone from users table
-                existing_u = supabase.table("users").select("phone_number").eq("telegram_id", target_id).execute()
+                existing_u = supabase.table("villingili_users").select("phone_number").eq("telegram_id", target_id).execute()
                 if existing_u.data and existing_u.data[0].get('phone_number'):
                      p = existing_u.data[0]['phone_number']
                      if not str(p).startswith("pending"):
@@ -898,7 +1019,7 @@ async def process_update(data):
                     "phone_number": phone_val
                 }
                 
-                supabase.table("admin_users").upsert(admin_data, on_conflict="telegram_id").execute()
+                supabase.table("villingili_admin_users").upsert(admin_data, on_conflict="telegram_id").execute()
                 
                 # PM The user
                 msg_out = (
@@ -923,6 +1044,15 @@ async def process_update(data):
             env_grp = os.environ.get("TELEGRAM_ADMIN_GROUP_ID")
             ADMIN_GROUP_ID = int(env_grp) if env_grp else -1003695872031
             
+            print(f"DEBUG: Checking Group Message. Chat ID: {chat_id}, Configured Admin Group: {ADMIN_GROUP_ID}", flush=True)
+
+            # Debug Mismatch (For troubleshooting ONLY)
+            if int(chat_id) != ADMIN_GROUP_ID and photo:
+                 send_telegram_message(chat_id, f"⚠️ **Debug:** Wrong Group ID.\nThis Group: `{chat_id}`\nConfigured: `{ADMIN_GROUP_ID}`")
+                 return
+
+
+
             # 1. HANDLE PHOTOS (ID Card Scan)
             if int(chat_id) == ADMIN_GROUP_ID and photo:
                 try:
@@ -945,90 +1075,87 @@ async def process_update(data):
                         from .utils import analyze_id_card_with_ai
                         result = analyze_id_card_with_ai(image_url)
                         
-                        if result and result.get("is_valid"):
-                            # EXTRACTED
-                            name = result["full_name"]
-                            nid = result["id_card_number"]
-                            sex = result["sex"]
-                            addr = result["address"]
+                        if result:
+                            # 1. Invalid Image Handling
+                            if not result.get("is_valid"):
+                                error_code = result.get("error")
+                                if error_code == "UNCLEAR":
+                                    send_telegram_message(chat_id, "⚠️ **Image Unclear**\nPlease re-upload a **clear image** of the ID card without glare or reflection.")
+                                else:
+                                    send_telegram_message(chat_id, "❌ **Not Identified**\nPlease upload a valid Maldives National Identity Card.")
+                                return
+
+                            # 2. Success - Extract & Ask for Blood Type
+                            name = result.get("full_name", "Unknown")
+                            nid = result.get("id_card_number", "Unknown")
+                            sex = result.get("sex", "Unknown")
+                            addr = result.get("address", "Unknown")
+                            dob = result.get("date_of_birth", "Unknown")
                             
-                            # GENERATE SYNTHETIC ID
-                            # Simple hash to integer
+                            # Normalize Sex
+                            if sex and sex.upper().startswith("M"): sex = "Male"
+                            elif sex and sex.upper().startswith("F"): sex = "Female"
+
+                            # Store temporarily using a callback-friendly approach or DB draft
+                            # Since callback data is limited (64 bytes), we can't put everything there.
+                            # We will upsert a 'draft' user into DB with status='draft_scanning'
+                            
+                            # Generate Temp ID from NID hash to be consistent
                             import hashlib
                             id_hash = int(hashlib.sha256(nid.encode('utf-8')).hexdigest(), 16) % (10**12)
-                            fake_tg_id = id_hash # Use this as the ID
+                            fake_tg_id = id_hash 
                             
-                            # PREPARE DATA
+                            # Store in DB as DRAFT
                             user_data = {
                                 "telegram_id": fake_tg_id,
                                 "full_name": name,
-                                "phone_number": f"pending_{nid}", # Placeholder
+                                "phone_number": f"DRAFT_{fake_tg_id}", # Placeholder to satisfy NOT NULL constraint
                                 "id_card_number": nid,
                                 "sex": sex,
                                 "address": addr,
-                                "status": "pending",
+                                "status": "pending", # Satisfies CHECK (status in ('active', 'pending', 'banned'))
                                 "role": "user"
                             }
-
-                            # CHECK FOR DUPLICATES
-                            existing = supabase.table("users").select("*").eq("id_card_number", nid).execute()
-                            if existing.data:
-                                # User Exists
-                                ext_user = existing.data[0]
-                                
-                                # PRESERVE EXISTING PHONE & STATUS
-                                if ext_user.get("phone_number") and not str(ext_user.get("phone_number")).startswith("pending"):
-                                    user_data["phone_number"] = ext_user["phone_number"]
-                                    user_data["telegram_id"] = ext_user["telegram_id"] # Use Real ID
-                                    user_data["status"] = ext_user["status"] or "active"
-
-                                # Store in cache for "Proceed"
-                                # PENDING_SCANS[str(fake_tg_id)] = user_data
-                                # moved global decl to top
-                                PENDING_SCANS[str(fake_tg_id)] = user_data
-                                
-                                msg_text = (
-                                    f"⚠️ <b>User Already Exists!</b>\n"
-                                    f"ID: <code>{nid}</code>\n"
-                                    f"Name: {ext_user.get('full_name')}\n"
-                                    f"Status: {ext_user.get('status')}\n\n"
-                                    f"<b>New Scan Info:</b>\n"
-                                    f"Name: {name}\n"
-                                    f"Address: {addr}\n\n"
-                                    f"❓ <b>Do you want to UPDATE this user?</b>"
-                                )
-                                keyboard = {
-                                    "inline_keyboard": [
-                                        [
-                                            {"text": "✅ Proceed Update", "callback_data": f"force_update_{fake_tg_id}"},
-                                            {"text": "❌ Cancel", "callback_data": f"cancel_update_{fake_tg_id}"}
-                                        ]
-                                    ]
-                                }
-                                send_telegram_message(chat_id, msg_text, reply_markup=keyboard)
+                            # Upsert by ID Card Number to handle re-uploads/corrections
+                            # But we need to be careful not to overwrite valid active users if we are just "checking"
+                            # The requirement is to 'update db', so upserting IS the goal.
+                            # We'll use 'id_card_number' as the unique key for this logic basically.
+                            
+                            # Manual Upsert (Check -> Insert/Update)
+                            try:
+                                ex = supabase.table("villingili_users").select("telegram_id").eq("telegram_id", fake_tg_id).execute()
+                                if ex.data:
+                                    supabase.table("villingili_users").update(user_data).eq("telegram_id", fake_tg_id).execute()
+                                else:
+                                    supabase.table("villingili_users").insert(user_data).execute()
+                            except Exception as e:
+                                print(f"DB Upsert Error: {e}")
+                                send_telegram_message(chat_id, f"⚠️ Database Error: {e}")
                                 return
                             
-                            # IF NEW: Upsert immediately
-                            supabase.table("users").upsert(user_data).execute()
-                            
-                            # ASK FOR CONFIRMATION
-                            msg_text = (
-                                f"✅ <b>Card Scanned! Details Found:</b>\n"
-                                f"👤 Name: {name}\n"
-                                f"🆔 ID: {nid}\n"
-                                f"⚧ Sex: {sex}\n"
-                                f"🏠 Address: {addr}\n\n"
-                                f"Is this correct?"
-                            )
+                            # Send Blood Type Buttons
                             keyboard = {
                                 "inline_keyboard": [
-                                    [{"text": "✅ Confirm & Select Blood Group", "callback_data": f"confirm_id_{fake_tg_id}"}]
+                                    [{"text": "A+", "callback_data": f"admin_set_blood_{fake_tg_id}_A+"}, {"text": "A-", "callback_data": f"admin_set_blood_{fake_tg_id}_A-"}],
+                                    [{"text": "B+", "callback_data": f"admin_set_blood_{fake_tg_id}_B+"}, {"text": "B-", "callback_data": f"admin_set_blood_{fake_tg_id}_B-"}],
+                                    [{"text": "O+", "callback_data": f"admin_set_blood_{fake_tg_id}_O+"}, {"text": "O-", "callback_data": f"admin_set_blood_{fake_tg_id}_O-"}],
+                                    [{"text": "AB+", "callback_data": f"admin_set_blood_{fake_tg_id}_AB+"}, {"text": "AB-", "callback_data": f"admin_set_blood_{fake_tg_id}_AB-"}]
                                 ]
                             }
-                            send_telegram_message(chat_id, msg_text, reply_markup=keyboard)
                             
+                            msg = (
+                                f"✅ **ID Scanned Successfully!**\n\n"
+                                f"👤 Name: {name}\n"
+                                f"🆔 ID: {nid}\n"
+                                f"🎂 DOB: {dob}\n"
+                                f"🏠 Addr: {addr}\n\n"
+                                f"🩸 **Select Blood Type:**"
+                            )
+                            send_telegram_message(chat_id, msg, reply_markup=keyboard)
                         else:
-                            send_telegram_message(chat_id, "⚠️ Could not recognize ID card or Invalid.")
+                             send_telegram_message(chat_id, "⚠️ AI Analysis failed. Please try again.")
+
+
                     
                     return # Stop processing
                     
@@ -1040,10 +1167,14 @@ async def process_update(data):
         
             # 2. Handle ID Card Phone Input (Admin Group)
             reply = msg.get("reply_to_message")
+            # DEBUG LOGGING (Temporary)
+            if reply:
+                 print(f"DEBUG: Reply detected in Chat {chat_id}. Text: {reply.get('text', '')[:20]}...")
             if int(chat_id) == ADMIN_GROUP_ID and reply and "REF:" in reply.get("text", ""):
+                 print("DEBUG: REF ID found in reply. Processing...")
                  ref_line = [l for l in reply.get("text", "").split("\n") if "REF:" in l]
                  if ref_line:
-                     fake_id_str = ref_line[0].split("REF:")[1]
+                     fake_id_str = ref_line[0].split("REF:")[1].strip()
                      # Validate Phone (Maldives Mobile: 7xxxxxx or 9xxxxxx)
                      raw_ph = text.strip()
                      import re
@@ -1059,17 +1190,21 @@ async def process_update(data):
                          # ROBUST MERGE LOGIC (Patch V3)
                          try:
                              # Check if Phone Exists
-                             existing_ph = supabase.table("users").select("*").eq("phone_number", final_phone).execute()
+                             existing_ph = supabase.table("villingili_users").select("*").eq("phone_number", final_phone).execute()
                              if existing_ph.data:
                                  conflict_user = existing_ph.data[0]
                                  # Merge New Info (Scan) INTO Old User (Mobile)
                                  c_pk = conflict_user["telegram_id"]
                                  # Get Target Info (Scan User)
-                                 target_u_res = supabase.table("users").select("*").eq("telegram_id", fake_id_str).single().execute()
+                                 try:
+                                     target_u_res = supabase.table("villingili_users").select("*").eq("telegram_id", fake_id_str).execute()
+                                 except Exception as e:
+                                     return
+                                     
                                  if target_u_res.data:
-                                      target_u = target_u_res.data
+                                      target_u = target_u_res.data[0]
                                       # Update Conflict User with ID Details
-                                      supabase.table("users").update({
+                                      supabase.table("villingili_users").update({
                                            "full_name": target_u.get("full_name"),
                                            "id_card_number": target_u.get("id_card_number"),
                                            "sex": target_u.get("sex"),
@@ -1078,7 +1213,7 @@ async def process_update(data):
                                            "status": "active"
                                       }).eq("telegram_id", c_pk).execute()
                                       # Delete Pending Scan User
-                                      supabase.table("users").delete().eq("telegram_id", fake_id_str).execute()
+                                      supabase.table("villingili_users").delete().eq("telegram_id", fake_id_str).execute()
                                       send_telegram_message(chat_id, f"✅ <b>Merged!</b>\nPhone {final_phone} was already registered.\nUpdated record with ID Card info.")
                                       # Notify User
                                       try:
@@ -1089,13 +1224,39 @@ async def process_update(data):
                                       send_telegram_message(chat_id, "⚠️ Error finding pending scan record.")
                              else:
                                  # Normal Update
-                                 supabase.table("users").update({
+                                 supabase.table("villingili_users").update({
                                      "phone_number": final_phone,
                                      "status": "active"
                                  }).eq("telegram_id", fake_id_str).execute()
                                  send_telegram_message(chat_id, f"✅ <b>Registration Complete!</b>\nPhone: {final_phone}\n\nUser is now active.")
                          except Exception as e:
-                             send_telegram_message(chat_id, f"⚠️ Error updating phone: {e}")
+                             err_str = str(e)
+                             if "23505" in err_str or "already exists" in err_str:
+                                 # FORCE MERGE (Duplicate Key)
+                                 try:
+                                     # Fetch the Conflict User
+                                     con_res = supabase.table("villingili_users").select("*").eq("phone_number", final_phone).execute()
+                                     if con_res.data:
+                                          conflict_user = con_res.data[0]
+                                          c_pk = conflict_user["telegram_id"]
+                                          # Update Conflict User
+                                          supabase.table("villingili_users").update({
+                                               "full_name": target_u.get("full_name"),
+                                               "id_card_number": target_u.get("id_card_number"),
+                                               "sex": target_u.get("sex"),
+                                               "address": target_u.get("address"),
+                                               "blood_type": target_u.get("blood_type"),
+                                               "status": "active"
+                                          }).eq("telegram_id", c_pk).execute()
+                                          # Delete Draft
+                                          supabase.table("villingili_users").delete().eq("telegram_id", fake_id_str).execute()
+                                          send_telegram_message(chat_id, f"✅ <b>Merged!</b>\nPhone {final_phone} was already registered.\nUpdated record with ID Card info.")
+                                          return
+                                 except Exception as merge_err:
+                                      print(f"Merge Error: {merge_err}")
+                                      send_telegram_message(chat_id, f"⚠️ Error merging: {merge_err}")
+                             else:
+                                 send_telegram_message(chat_id, f"⚠️ Error updating phone: {e}")
                      else:
                          send_telegram_message(chat_id, "⚠️ Invalid Mobile Number.\nMust be a local mobile number starting with <b>7</b> or <b>9</b> (e.g., 7771234).")
                      return
@@ -1104,7 +1265,7 @@ async def process_update(data):
             if int(chat_id) == ADMIN_GROUP_ID and text and not text.startswith("/"):
                  # A. Explicit "list" command
                  if text.strip().lower() == "list":
-                      donors = supabase.table("users").select("full_name, phone_number, blood_type").neq("blood_type", None).execute()
+                      donors = supabase.table("villingili_users").select("full_name, phone_number, blood_type").neq("blood_type", None).execute()
                       if donors.data:
                            # Group by Blood Type
                            grouped = {}
@@ -1136,7 +1297,7 @@ async def process_update(data):
                      bt = text.strip().upper()
                      valid_types = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]
                      if bt in valid_types:
-                          donors = supabase.table("users").select("full_name, phone_number").eq("blood_type", bt).execute()
+                          donors = supabase.table("villingili_users").select("full_name, phone_number").eq("blood_type", bt).execute()
                           if donors.data:
                               msg = f"<b>Donors for {bt}:</b>\n"
                               for d in donors.data:
@@ -1170,7 +1331,7 @@ async def process_update(data):
                     try:
                         # If user exists, just save intent
                         if user_exists:
-                             supabase.table("users").update({"pending_request_id": req_id}).eq("telegram_id", user_id).execute()
+                             supabase.table("villingili_users").update({"pending_request_id": req_id}).eq("telegram_id", user_id).execute()
                              send_telegram_message(user_id, "ℹ️ You selected a request to help.\nPlease share your contact to proceed.")
                         else:
                              # New User: Create Pending Stub to preserve ID
@@ -1183,14 +1344,14 @@ async def process_update(data):
                                  "pending_request_id": req_id,
                                  "role": "user"
                              }
-                             supabase.table("users").upsert(stub_data).execute()
+                             supabase.table("villingili_users").upsert(stub_data).execute()
                              # Note: Next time this user messages, they will be found as 'pending'
                     except Exception as e:
                         print(f"Start Payload Error: {e}")
 
         # 1. Check if user is registered (using user_id, NOT chat_id)
         try:
-             user_query = supabase.table("users").select("*").eq("telegram_id", user_id).execute()
+             user_query = supabase.table("villingili_users").select("*").eq("telegram_id", user_id).execute()
              user = user_query.data[0] if user_query.data else None
              user_exists = user is not None
         except Exception as e:
@@ -1221,26 +1382,26 @@ async def process_update(data):
                         }
 
                         # Check for phone conflict (Same phone, different ID)
-                        existing_phone = supabase.table("users").select("telegram_id").eq("phone_number", phone).neq("telegram_id", user_id).execute()
+                        existing_phone = supabase.table("villingili_users").select("telegram_id").eq("phone_number", phone).neq("telegram_id", user_id).execute()
                         
                         if existing_phone.data:
                              old_id = existing_phone.data[0]['telegram_id']
                              print(f"Migrating user {old_id} to {user_id}...")
                              
                              # 1. Free up the phone number (change old to temporary)
-                             supabase.table("users").update({"phone_number": f"{phone}_old_{old_id}"}).eq("telegram_id", old_id).execute()
+                             supabase.table("villingili_users").update({"phone_number": f"{phone}_old_{old_id}"}).eq("telegram_id", old_id).execute()
                              
                              # 2. Register New User
-                             supabase.table("users").upsert(user_data).execute()
+                             supabase.table("villingili_users").upsert(user_data).execute()
                              
                              # 3. Migrate Requests (Move ownership)
-                             supabase.table("requests").update({"requester_id": user_id}).eq("requester_id", old_id).execute()
+                             supabase.table("villingili_requests").update({"requester_id": user_id}).eq("requester_id", old_id).execute()
                              
                              # 4. Delete Old User
-                             supabase.table("users").delete().eq("telegram_id", old_id).execute()
+                             supabase.table("villingili_users").delete().eq("telegram_id", old_id).execute()
                         else:
                              # Normal Upsert
-                             supabase.table("users").upsert(user_data).execute()
+                             supabase.table("villingili_users").upsert(user_data).execute()
                         
 
                         
@@ -1275,11 +1436,11 @@ async def process_update(data):
                                      return
 
                                 # 2. Process Help
-                                req_query = supabase.table("requests").select("*").eq("id", pending_req).execute()
+                                req_query = supabase.table("villingili_requests").select("*").eq("id", pending_req).execute()
                                 if req_query.data:
                                     req = req_query.data[0]
                                     requester_id = req["requester_id"]
-                                    requester_info = supabase.table("users").select("full_name, phone_number").eq("telegram_id", requester_id).single().execute()
+                                    requester_info = supabase.table("villingili_users").select("full_name, phone_number").eq("telegram_id", requester_id).single().execute()
                                     
                                     if requester_info.data:
                                         r_name = requester_info.data.get("full_name")
@@ -1297,8 +1458,8 @@ async def process_update(data):
                                             send_telegram_message(channel_id, f"🦸♂️ <b>{d_name}</b> offered to help a pending request!")
                                         
                                         new_count = (req.get("donors_found") or 0) + 1
-                                        supabase.table("requests").update({"donors_found": new_count}).eq("id", pending_req).execute()
-                                        supabase.table("users").update({"pending_request_id": None}).eq("telegram_id", user_id).execute()
+                                        supabase.table("villingili_requests").update({"donors_found": new_count}).eq("id", pending_req).execute()
+                                        supabase.table("villingili_users").update({"pending_request_id": None}).eq("telegram_id", user_id).execute()
                                         return
                             except Exception as e:
                                  print(f"Deferred Help Error: {e}")
@@ -1335,7 +1496,7 @@ async def process_update(data):
                         "resize_keyboard": True,
                         "one_time_keyboard": True
                     }
-                    send_telegram_message(chat_id, "👋 Welcome to Blood Donation-Siwad.\nPlease click the START button below to proceed.\n\n                                        👇👇👇", reply_markup=keyboard)
+                    send_telegram_message(chat_id, "👋 Welcome to Blood Donation-Siwad.\n\nPlease click the **START** button below to proceed.\n\n👇👇👇\n\n<i>Don't see the button?</i>\nClick the 🎛 <b>Menu/Keyboard Icon</b> in your text bar to reveal it.", reply_markup=keyboard)
             
 
 
@@ -1395,7 +1556,7 @@ async def process_update(data):
                                        "urgency": urgency,
                                        "is_active": True
                                   }
-                                  res = supabase.table("requests").insert(req_data).execute()
+                                  res = supabase.table("villingili_requests").insert(req_data).execute()
                                   req_id = res.data[0]['id']
                             
                                   # Broadcast to Channel
@@ -1408,10 +1569,10 @@ async def process_update(data):
                                                 {"text": "🙋♂️ I Can Help", "callback_data": f"help_{req_id}"}
                                             ]]
                                        }
-                                       sent = send_telegram_message(channel_id, msg_text, reply_markup=keyboard)
+                                       sent = send_telegram_message(channel_id, msg_text)
                                        if sent and sent.get("ok"):
                                           msg_id = sent["result"]["message_id"]
-                                          supabase.table("requests").update({"telegram_message_id": msg_id}).eq("id", req_id).execute()
+                                          supabase.table("villingili_requests").update({"telegram_message_id": msg_id}).eq("id", req_id).execute()
 
                                   send_telegram_message(chat_id, f"✅ <b>Request Sent!</b>\n\nWe have broadcast your need for <b>{blood_type}</b> at <b>{location}</b> to the channel.")
                             
@@ -1433,31 +1594,31 @@ async def process_update(data):
 
                               # Check conflict
                               # Check conflict (Robust Logic via Patch)
-                              existing_res = supabase.table("users").select("*").eq("phone_number", phone).execute()
+                              existing_res = supabase.table("villingili_users").select("*").eq("phone_number", phone).execute()
                               conflict_user = next((u for u in existing_res.data if str(u.get("telegram_id")) != str(chat_id)), None)
 
                               if conflict_user:
                                   import time
                                   c_pk = conflict_user["telegram_id"]
                                   old_tg_id = conflict_user.get("telegram_id")
-                                  send_telegram_message(chat_id, f"🔄 Found existing record for **{conflict_user.get("full_name", "User")}**. Merging...")
+                                  send_telegram_message(chat_id, f"🔄 Found existing record for **{conflict_user.get('full_name', 'User')}**. Merging...")
                                   temp_phone = f"{phone}_old_{int(time.time())}"
-                                  supabase.table("users").update({"phone_number": temp_phone}).eq("telegram_id", c_pk).execute()
-                                  supabase.table("users").update({"phone_number": phone}).eq("telegram_id", chat_id).execute()
+                                  supabase.table("villingili_users").update({"phone_number": temp_phone}).eq("telegram_id", c_pk).execute()
+                                  supabase.table("villingili_users").update({"phone_number": phone}).eq("telegram_id", chat_id).execute()
                                   user["phone_number"] = phone
                                   updates = {}
                                   for field in ["sex", "address", "island", "birth_date", "blood_type", "permanent_address"]:
                                        if not user.get(field) and conflict_user.get(field):
                                            updates[field] = conflict_user[field]
                                   if updates:
-                                       supabase.table("users").update(updates).eq("telegram_id", chat_id).execute()
+                                       supabase.table("villingili_users").update(updates).eq("telegram_id", chat_id).execute()
                                        user.update(updates)
                                   if old_tg_id:
-                                       supabase.table("requests").update({"requester_id": chat_id}).eq("requester_id", old_tg_id).execute()
-                                  supabase.table("users").delete().eq("id", c_pk).execute()
+                                       supabase.table("villingili_requests").update({"requester_id": chat_id}).eq("requester_id", old_tg_id).execute()
+                                  supabase.table("villingili_users").delete().eq("id", c_pk).execute()
                                   send_telegram_message(chat_id, "✅ Account merged successfully!")
                               else:
-                                  supabase.table("users").update({"phone_number": phone}).eq("telegram_id", chat_id).execute()
+                                  supabase.table("villingili_users").update({"phone_number": phone}).eq("telegram_id", chat_id).execute()
                                   user["phone_number"] = phone
 
                               from .utils import check_and_prompt_missing_info
@@ -1591,7 +1752,8 @@ async def process_update(data):
                      send_telegram_message(chat_id, msg_text, reply_markup=keyboard)
 
                 elif text:
-                     # Check for Blood Request intent
+ 
+                    # Check for Blood Request intent
                     if not text.startswith("/"):
                         parsed = parse_request_with_ai(text)
                         if parsed and parsed.get("blood_type"):
@@ -1613,7 +1775,7 @@ async def process_update(data):
                                  "urgency": urgency,
                                  "is_active": True
                              }
-                             res = supabase.table("requests").insert(req_data).execute()
+                             res = supabase.table("villingili_requests").insert(req_data).execute()
                              req_id = res.data[0]['id']
                              
                              # Broadcast to Channel
@@ -1635,13 +1797,13 @@ async def process_update(data):
                                  sent = send_telegram_message(channel_id, msg_text, reply_markup=keyboard)
                                  if sent and sent.get("ok"):
                                      msg_id = sent["result"]["message_id"]
-                                     supabase.table("requests").update({"telegram_message_id": msg_id}).eq("id", req_id).execute()
+                                     supabase.table("villingili_requests").update({"telegram_message_id": msg_id}).eq("id", req_id).execute()
                              
                              send_telegram_message(chat_id, f"✅ Request sent to channel! Waiting for donors...")
                              
                              # Find Matches
                              try:
-                                 donors = supabase.table("users").select("full_name, phone_number")\
+                                 donors = supabase.table("villingili_users").select("full_name, phone_number")\
                                      .eq("blood_type", blood_type)\
                                      .neq("telegram_id", chat_id)\
                                      .execute()
@@ -1652,6 +1814,8 @@ async def process_update(data):
                                          # User Request: Blood Group | Name | Phone
                                          match_msg += f"- {blood_type} | {d['full_name']} | {d['phone_number']}\n"
                                      send_telegram_message(chat_id, match_msg)
+                                 else:
+                                     send_telegram_message(chat_id, f"⚠️ <b>No direct matches found.</b>\nWe have broadcast your request to the channel.")
                              except Exception as e:
                                  print(f"Match Error: {e}")
 
@@ -1742,92 +1906,80 @@ async def process_update(data):
         return
 
 
-@app.post("/api/update_user")
-async def update_user(request: Request):
-    try:
-        data = await request.json()
-        
-        # Check Duplicate Phone
-        if data.get("phone_number"):
-            existing = supabase.table("users").select("telegram_id").eq("phone_number", data["phone_number"]).execute()
-            if existing.data:
-                return {"status": "error", "detail": f"User with phone {data['phone_number']} already exists!"}
-        telegram_id = data.get("telegram_id")
-        
-        if not telegram_id:
-            return {"status": "error", "detail": "Missing telegram_id"}
-        
-        # Prepare Update Payload
-        update_data = {}
-        fields = ["full_name", "phone_number", "blood_type", "sex", "address", "id_card_number", "role", "status"]
-        
-        for f in fields:
-            if f in data:
-                update_data[f] = data[f]
-                
-        # Execute Supabase Update
-        res = supabase.table("users").update(update_data).eq("telegram_id", telegram_id).execute()
-        
-        return {"status": "ok"}
-             
-    except Exception as e:
-        print(f"Update User Error: {e}")
-        return {"status": "error", "detail": str(e)}
-
-
-@app.get("/api/get_admins")
-def get_admins():
-    supabase = get_supabase_client()
-    try:
-        res = supabase.table("admin_users").select("*").execute()
-        return res.data
-    except Exception as e:
-        print(f"Get Admins Error: {e}")
-        return []
-
-@app.post("/api/create_admin")
-async def create_admin(request: Request):
+@app.post("/api/update_last_donation")
+async def update_last_donation(request: Request, current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     try:
         data = await request.json()
-        username = data.get("username")
-        phone = data.get("phone_number")
+        user_id = data.get("user_id")
+        date_str = data.get("date")
+
+        if not user_id or not date_str:
+             return {"status": "error", "message": "Missing user_id or date"}
+
+        # Update the user record
+        res = supabase.table("villingili_users").update({"last_donation_date": date_str}).eq("telegram_id", user_id).execute()
         
-        import time
-        fake_id = int(time.time() * -1000) 
-        
-        user_data = {
-            "telegram_id": fake_id, 
-            "username": username,
-            "phone_number": phone,
-            "password": "Password1", 
-        }
-        res = supabase.table("admin_users").insert(user_data).execute()
-        return {"status": "ok"}
+        return {"status": "ok", "message": "Donation date updated"}
     except Exception as e:
-        print(f"Create Admin Error: {e}")
+        print(f"Update Donation Error: {e}")
         return {"status": "error", "message": str(e)}
 
-@app.post("/api/update_password")
-async def update_password(request: Request):
+
+# @app.post("/api/update_user")
+# async def update_user(request: Request):
+#    return {"status": "error", "message": "Deprecated. Use Pydantic endpoint."}
+
+
+@app.post("/api/broadcast")
+async def broadcast_message(request: Request, current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     try:
         data = await request.json()
-        new_pass = data.get("new_password")
-        username = data.get("username") 
+        message = data.get("message")
         
-        # Try update by phone
-        res = supabase.table("admin_users").update({"password": new_pass}).eq("phone_number", username).execute()
-        # If no update (empty data), try username
-        if not res.data:
-            res = supabase.table("admin_users").update({"password": new_pass}).eq("username", username).execute()
-        return {"status": "ok"}
+        if not message:
+            return {"status": "error", "message": "Message content is required"}
+            
+        # Get all users with a telegram_id
+        # In production, you might want to batch this or use a queue
+        users_res = supabase.table("villingili_users").select("telegram_id").execute()
+        users = users_res.data
+        
+        count = 0
+        failed = 0
+        
+        for user in users:
+            tid = user.get("telegram_id")
+            if tid:
+                try:
+                    send_telegram_message(tid, message)
+                    count += 1
+                except Exception as e:
+                    print(f"Failed to send to {tid}: {e}")
+                    failed += 1
+                    
+        return {"status": "ok", "sent_count": count, "failed_count": failed}
+
     except Exception as e:
-        print(f"Update Password Error: {e}")
+        print(f"Broadcast Error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+# @app.get("/api/get_admins")
+# def get_admins():
+#    pass
+
+# @app.post("/api/create_admin")
+# async def create_admin(request: Request):
+#    pass
+
+# @app.post("/api/update_password")
+# async def update_password(request: Request):
+#    pass
 
 @app.post("/api/delete_admin")
-async def delete_admin(request: Request):
+async def delete_admin(request: Request, current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     try:
         data = await request.json()
@@ -1835,7 +1987,7 @@ async def delete_admin(request: Request):
         username = data.get("username")
         
         # Delete from admin_users
-        query = supabase.table("admin_users").delete()
+        query = supabase.table("villingili_admin_users").delete()
         if telegram_id:
              query = query.eq("telegram_id", telegram_id)
         elif username:
@@ -1850,14 +2002,14 @@ async def delete_admin(request: Request):
         return {"status": "error", "detail": str(e)}
 
 @app.post("/api/create_user")
-async def create_user(request: Request):
+async def create_user(request: Request, current_user: str = Depends(get_current_admin)):
     supabase = get_supabase_client()
     try:
         data = await request.json()
         
         # Check Duplicate Phone
         if data.get("phone_number"):
-            existing = supabase.table("users").select("telegram_id").eq("phone_number", data["phone_number"]).execute()
+            existing = supabase.table("villingili_users").select("telegram_id").eq("phone_number", data["phone_number"]).execute()
             if existing.data:
                 return {"status": "error", "detail": f"User with phone {data['phone_number']} already exists!"}
         
@@ -1892,13 +2044,72 @@ async def create_user(request: Request):
         }
         
         # Execute Supabase Insert
-        res = supabase.table("users").insert(user_data).execute()
+        res = supabase.table("villingili_users").insert(user_data).execute()
         
         return {"status": "ok", "id": fake_id}
              
     except Exception as e:
         print(f"Create User Error: {e}")
         return {"status": "error", "detail": str(e)}
+
+@app.get("/api/settings")
+async def get_settings(current_user: str = Depends(get_current_admin)):
+    return {
+        "TELEGRAM_BOT_TOKEN": os.environ.get("TELEGRAM_BOT_TOKEN"),
+        "TELEGRAM_CHANNEL_ID": os.environ.get("TELEGRAM_CHANNEL_ID"),
+        "ADMIN_GROUP_ID": os.environ.get("TELEGRAM_ADMIN_GROUP_ID"),
+        "SUPABASE_URL": os.environ.get("SUPABASE_URL"),
+        # Mask Key for security
+        "SUPABASE_KEY": "HIDDEN", 
+    }
+
+@app.post("/api/settings")
+async def update_settings(request: Request, current_user: str = Depends(get_current_admin)):
+    try:
+        data = await request.json()
+        # Updates .env file crudely
+        env_path = os.path.join(os.getcwd(), ".env")
+        
+        # Read existing
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+        
+        updates = {
+            "TELEGRAM_BOT_TOKEN": data.get("TELEGRAM_BOT_TOKEN"),
+            "TELEGRAM_CHANNEL_ID": data.get("TELEGRAM_CHANNEL_ID"),
+            "TELEGRAM_ADMIN_GROUP_ID": data.get("ADMIN_GROUP_ID"), # Map Frontend name to Env name
+            "SUPABASE_URL": data.get("SUPABASE_URL"),
+            "SUPABASE_SERVICE_ROLE_KEY": data.get("SUPABASE_KEY") # Settings calls it KEY but likely means Service Role if Admin
+        }
+        
+        # We need to actully update lines or append
+        # This is a bit complex to do reliably in 10 lines, but basic approach:
+        new_lines = []
+        keys_handled = set()
+        for line in lines:
+            key = line.split("=")[0].strip()
+            if key in updates and updates[key]:
+                new_lines.append(f"{key}={updates[key]}\n")
+                keys_handled.add(key)
+            else:
+                new_lines.append(line)
+        
+        for k, v in updates.items():
+            if k not in keys_handled and v:
+                new_lines.append(f"{k}={v}\n")
+        
+        with open(env_path, "w") as f:
+            f.writelines(new_lines)
+            
+        # Also update memory
+        for k, v in updates.items():
+            if v: os.environ[k] = v
+            
+        return {"status": "ok", "message": "Settings Updated (Restart might be needed)"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/webhook")
 async def telegram_webhook(request: Request):
