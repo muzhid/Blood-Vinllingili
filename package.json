@@ -1,0 +1,13 @@
+{
+    "name": "blood-donation-siwad",
+    "version": "1.0.0",
+    "scripts": {
+        "install-frontend": "cd frontend && npm install",
+        "build-frontend": "cd frontend && npm run build",
+        "build": "npm run install-frontend && npm run build-frontend && npx shx mkdir -p api/static && npx shx cp -r frontend/dist/* api/static/"
+    },
+    "dependencies": {
+        "shx": "^0.3.4"
+    },
+    "devDependencies": {}
+}
