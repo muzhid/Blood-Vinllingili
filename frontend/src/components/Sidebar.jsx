@@ -13,7 +13,7 @@ export function Sidebar({
         <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground transition-all duration-300">
             <div className={`h-16 flex items-center border-b border-sidebar-border bg-sidebar ${mobile || !isCollapsed ? 'px-6' : 'justify-center'}`}>
                 {mobile || !isCollapsed ? (
-                    <div className="text-xl font-bold tracking-tight truncate">Blood Donation</div>
+                    <div className="text-xl font-bold tracking-tight truncate">Villingili Blood Donors</div>
                 ) : (
                     <Activity className="w-6 h-6 text-primary" />
                 )}

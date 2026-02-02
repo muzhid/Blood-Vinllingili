@@ -43,9 +43,9 @@ export default function Login() {
         <div className="flex items-center justify-center min-h-screen bg-background">
             <Card className="w-full max-w-sm">
                 <CardHeader>
-                    <CardTitle className="text-2xl text-center">Admin Portal</CardTitle>
+                    <CardTitle className="text-2xl text-center">Villingili Blood Donors</CardTitle>
                     <CardDescription className="text-center">
-                        Blood Donation System
+                        Official Portal
                     </CardDescription>
                 </CardHeader>
                 <form onSubmit={handleLogin}>
