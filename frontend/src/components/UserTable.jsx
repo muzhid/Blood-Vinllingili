@@ -411,10 +411,26 @@ export function UserTable() {
                                     {user.status === 'banned' && (
                                         <Badge variant="destructive" className="w-fit">Banned</Badge>
                                     )}
-                                    {/* Helper function logic for next eligible repeated here or rendered via cell? 
-                                        Lets keep it simple for now, maybe add a 'Status' text
-                                    */}
                                 </CardContent>
+                                <CardFooter className="pt-2 flex justify-between items-center border-t bg-muted/20">
+                                    <div className="w-full">
+                                        {user.blood_type && (new Date() > addMonths(new Date(user.last_donation_date || 0), 3)) ? (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-colors"
+                                                onClick={(e) => openDonationModal(e, user)}
+                                            >
+                                                <Droplet className="mr-2 h-4 w-4 fill-current" />
+                                                Mark as Donated
+                                            </Button>
+                                        ) : (
+                                            <Badge variant="outline" className="text-muted-foreground bg-muted font-normal w-full justify-center">
+                                                {user.last_donation_date ? `Eligible: ${format(addMonths(new Date(user.last_donation_date), 3), 'dd-MMM')}` : 'Profile Incomplete'}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </CardFooter>
                             </Card>
                         )
                     })
@@ -425,13 +441,15 @@ export function UserTable() {
                 )}
             </div>
 
-            {isModalOpen && (
-                <EditUserModal
-                    user={selectedUser}
-                    onClose={() => setIsModalOpen(false)}
-                    onUpdate={handleUpdate}
-                />
-            )}
+            {
+                isModalOpen && (
+                    <EditUserModal
+                        user={selectedUser}
+                        onClose={() => setIsModalOpen(false)}
+                        onUpdate={handleUpdate}
+                    />
+                )
+            }
 
             {/* Donation Confirmation Modal */}
             <Dialog open={isDonationOpen} onOpenChange={setIsDonationOpen}>
@@ -469,6 +487,6 @@ export function UserTable() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     )
 }
