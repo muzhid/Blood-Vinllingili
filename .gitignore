@@ -1,4 +1,5 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 .env
@@ -10,5 +11,3 @@ build/
 frontend/.env
 .vercel
 .env*.local
-
-
