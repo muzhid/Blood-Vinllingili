@@ -2127,6 +2127,12 @@ async def serve_spa(rest_of_path: str = ""):
         return JSONResponse({"error": "API route not found"}, status_code=404)
 
     # Search locations for index.html
+    # 1. Check if it's a static file in dist_dir (e.g. favicon.png)
+    file_path = os.path.join(dist_dir, rest_of_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+
+    # 2. Search locations for index.html (SPA Fallback)
     possible_paths = [
         os.path.join(dist_dir, "index.html"),
         os.path.join(base_dir, "frontend", "dist", "index.html"),
