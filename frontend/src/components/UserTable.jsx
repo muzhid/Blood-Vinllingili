@@ -6,7 +6,7 @@ import {
     getFilteredRowModel,
     flexRender,
 } from '@tanstack/react-table'
-import { ArrowUpDown, Plus, Search, Calendar as CalendarIcon, Droplet } from 'lucide-react'
+import { ArrowUpDown, Plus, Search, Calendar as CalendarIcon, Droplet, User, Phone, MapPin, CreditCard, MoreHorizontal } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +16,14 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card"
 import { format, addMonths, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -326,7 +334,8 @@ export function UserTable() {
                 </div>
             </div>
 
-            <div className="rounded-md border">
+            {/* Desktop View: Table */}
+            <div className="rounded-md border hidden md:block">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
@@ -372,6 +381,48 @@ export function UserTable() {
                         )}
                     </TableBody>
                 </Table>
+            </div>
+
+            {/* Mobile View: Cards */}
+            <div className="grid grid-cols-1 gap-4 md:hidden">
+                {table.getRowModel().rows?.length ? (
+                    table.getRowModel().rows.map((row) => {
+                        const user = row.original
+                        return (
+                            <Card key={row.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleRowClick(user)}>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-base font-bold">{user.full_name}</CardTitle>
+                                        <CardDescription className="text-xs">{user.role || 'user'}</CardDescription>
+                                    </div>
+                                    <Badge variant="outline" className="text-lg font-bold px-2 py-1 bg-red-50 text-red-600 border-red-100">
+                                        {user.blood_type || '?'}
+                                    </Badge>
+                                </CardHeader>
+                                <CardContent className="grid gap-2 text-sm">
+                                    <div className="flex items-center text-muted-foreground">
+                                        <Phone className="mr-2 h-3 w-3" />
+                                        {user.phone_number}
+                                    </div>
+                                    <div className="flex items-center text-muted-foreground">
+                                        <CreditCard className="mr-2 h-3 w-3" />
+                                        ID: {user.id_card_number || '-'}
+                                    </div>
+                                    {user.status === 'banned' && (
+                                        <Badge variant="destructive" className="w-fit">Banned</Badge>
+                                    )}
+                                    {/* Helper function logic for next eligible repeated here or rendered via cell? 
+                                        Lets keep it simple for now, maybe add a 'Status' text
+                                    */}
+                                </CardContent>
+                            </Card>
+                        )
+                    })
+                ) : (
+                    <div className="text-center p-8 text-muted-foreground bg-muted/20 rounded-lg">
+                        No results found.
+                    </div>
+                )}
             </div>
 
             {isModalOpen && (

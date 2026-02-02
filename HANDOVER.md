@@ -73,3 +73,29 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://blood-vinllingili.ver
 
 ## 📂 Manuals
 User manuals are located in `manual/v2/index.html`. Open this file to access guides for Admins, Nurses, and the Public.
+
+## 🛠 Troubleshooting & Vercel Deployment
+
+### Static File Serving (The "Missing Logo" Issue)
+On Vercel, the file system structure differs from local Windows/Mac environments.
+- **Local:** `npm run dev` (Vite) serves files directly from source.
+- **Production (Vercel):** The Python backend (`api/index.py`) serves the frontend.
+
+**Critical Logic:**
+The backend must dynamically locate the `static` folder. We use a robust search method in `api/index.py` around lines 70-80:
+```python
+possible_static_dirs = [
+    os.path.join(base_dir, "static"),
+    os.path.join(os.getcwd(), "api", "static"), 
+    # ... checks other locations
+]
+```
+If you change the folder structure or build process (`package.json`), ensure this logic handles the new paths, otherwise `favicon.png` or `assets` will return 404 (or the HTML homepage as a fallback).
+
+### Branding Updates
+If you change the App Name:
+1. Update `public/index.html` (Title).
+2. Update `frontend/src/components/Sidebar.jsx`.
+3. Update `frontend/src/pages/Login.jsx`.
+4. Update `frontend/public/manifest.json`.
+5. Run `npm run build` to regenerate the static files.
