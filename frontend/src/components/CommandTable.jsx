@@ -125,7 +125,7 @@ export function CommandTable() {
                         {table.getRowModel().rows.map((row) => (
                             <TableRow key={row.id}>
                                 {row.getVisibleCells().map((cell) => (
-                                    <TableCell key={cell.id} className={cell.column.id === 'description' || cell.column.id === 'example' ? 'whitespace-normal min-w-[200px]' : 'whitespace-nowrap'}>
+                                    <TableCell key={cell.id} className={`py-2 md:py-4 ${cell.column.id === 'description' ? 'whitespace-normal min-w-[300px]' : cell.column.id === 'example' ? 'whitespace-normal min-w-[150px]' : 'whitespace-nowrap'}`}>
                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                     </TableCell>
                                 ))}

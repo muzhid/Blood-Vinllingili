@@ -210,13 +210,13 @@ export function AdminTable() {
                         <TableBody>
                             {admins.map((admin, index) => (
                                 <TableRow key={index}>
-                                    <TableCell className="font-medium">{admin.username}</TableCell>
-                                    <TableCell>{admin.phone_number || '-'}</TableCell>
-                                    <TableCell>
+                                    <TableCell className="font-medium py-2 md:py-4">{admin.username}</TableCell>
+                                    <TableCell className="py-2 md:py-4">{admin.phone_number || '-'}</TableCell>
+                                    <TableCell className="py-2 md:py-4">
                                         <code className="text-xs bg-muted px-2 py-1 rounded">••••••••</code>
                                     </TableCell>
-                                    <TableCell>{new Date(admin.created_at).toLocaleDateString()}</TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="py-2 md:py-4">{new Date(admin.created_at).toLocaleDateString()}</TableCell>
+                                    <TableCell className="text-right py-2 md:py-4">
                                         <div className="flex justify-end gap-2">
                                             <Button
                                                 variant="ghost"
