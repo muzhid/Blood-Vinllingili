@@ -5,7 +5,7 @@ import {
 } from '@tanstack/react-table'
 import { useMemo } from 'react'
 import { Badge } from "@/components/ui/badge"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import {
     Table,
     TableBody,
@@ -114,7 +114,8 @@ export function CommandTable() {
                 <CardTitle>Bot Command Reference</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="rounded-md border overflow-x-auto">
+                {/* Desktop View */}
+                <div className="hidden md:block rounded-md border overflow-x-auto">
                     <Table>
                         <TableHeader>
                             {table.getHeaderGroups().map((headerGroup) => (
@@ -152,6 +153,33 @@ export function CommandTable() {
                             )}
                         </TableBody>
                     </Table>
+                </div>
+
+                {/* Mobile View */}
+                <div className="grid grid-cols-1 gap-4 md:hidden">
+                    {data.map((cmd, index) => (
+                        <Card key={index} className="bg-muted/10 border-l-4 border-l-primary/50">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base font-bold flex justify-between items-start">
+                                    <code className="bg-muted px-2 py-1 rounded text-red-500 font-mono text-sm">{cmd.command}</code>
+                                    <Badge variant={cmd.context.includes('Group') ? "default" : "secondary"} className="text-[10px]">
+                                        {cmd.context}
+                                    </Badge>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pb-2 text-sm">
+                                <p className="text-muted-foreground mb-2">{cmd.description}</p>
+                            </CardContent>
+                            <CardFooter className="pt-2 border-t bg-muted/20">
+                                <div className="w-full">
+                                    <p className="text-xs font-semibold text-muted-foreground mb-1">Example:</p>
+                                    <code className="text-xs block bg-background p-2 rounded border font-mono">
+                                        {cmd.example}
+                                    </code>
+                                </div>
+                            </CardFooter>
+                        </Card>
+                    ))}
                 </div>
             </CardContent>
         </Card >

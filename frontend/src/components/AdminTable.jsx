@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import {
     Table,
     TableBody,
@@ -196,7 +196,8 @@ export function AdminTable() {
                 </Dialog>
             </CardHeader>
             <CardContent>
-                <div className="rounded-md border overflow-x-auto">
+                {/* Desktop View */}
+                <div className="hidden md:block rounded-md border overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -247,6 +248,59 @@ export function AdminTable() {
                             )}
                         </TableBody>
                     </Table>
+                </div>
+
+                {/* Mobile View */}
+                <div className="grid grid-cols-1 gap-4 md:hidden">
+                    {admins.map((admin, index) => (
+                        <Card key={index} className="bg-muted/10">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base font-bold flex justify-between items-center">
+                                    {admin.username}
+                                    <span className="text-xs font-normal text-muted-foreground">
+                                        {new Date(admin.created_at).toLocaleDateString('en-GB')}
+                                    </span>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pb-2 text-sm">
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Phone:</span>
+                                        <span>{admin.phone_number || '-'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Password:</span>
+                                        <code className="text-xs bg-muted px-2 py-0.5 rounded">••••••••</code>
+                                    </div>
+                                </div>
+                            </CardContent>
+                            <CardFooter className="flex justify-end gap-2 pt-2 border-t bg-muted/20">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                                    onClick={() => setResetTarget(admin)}
+                                >
+                                    <Key className="mr-2 h-3 w-3" />
+                                    Reset Pass
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                                    onClick={() => handleDeleteAdmin(admin)}
+                                >
+                                    <Trash2 className="mr-2 h-3 w-3" />
+                                    Delete
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                    {admins.length === 0 && (
+                        <div className="text-center p-8 text-muted-foreground bg-muted/20 rounded-lg">
+                            No admins found.
+                        </div>
+                    )}
                 </div>
             </CardContent>
 
