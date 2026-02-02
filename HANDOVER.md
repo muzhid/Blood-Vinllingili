@@ -54,28 +54,22 @@ A mobile-friendly, printable user guide is available.
 - Fixed mobile scrolling issues in the Dashboard tables.
 - Standardized database table names (`villingili_...`).
 
-## 🚀 Deployment Guide (Vercel)
+## 🚀 Production Deployment (Live)
 
-1.  **Push to GitHub**: Commit and push your code.
-2.  **Import to Vercel**: Connect your repo. Vercel will auto-detect the configuration.
-3.  **Environment Variables**: Go to Vercel Settings > Environment Variables and add:
-    *   `SUPABASE_URL`
-    *   `SUPABASE_SERVICE_ROLE_KEY`
-    *   `OPENAI_API_KEY`
-    *   `TELEGRAM_BOT_TOKEN`
-    *   `TELEGRAM_CHANNEL_ID`
-    *   `TELEGRAM_ADMIN_GROUP_ID`
-    *   `VITE_SUPABASE_URL` (Same as SUPABASE_URL)
-    *   `VITE_SUPABASE_ANON_KEY` (From your Supabase settings)
+- **Admin Portal**: `https://blood-vinllingili.vercel.app`
+- **Manuals**: `https://blood-vinllingili.vercel.app/manual/v2/index.html`
+- **Bot Name**: `BIOOD-VILLINGILI Donors` (`@villingili_blood_bot`)
 
-4.  **⚡ Set the Webhook (CRITICAL)**
-    *   Bots on Vercel cannot "poll". You must tell Telegram to send messages to Vercel.
-    *   Once deployed, get your Vercel URL (e.g., `https://blood-villingili.vercel.app`).
-    *   Open this URL in your browser to set the webhook:
-        ```
-        https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://<YOUR_VERCEL_DOMAIN>/api/webhook
-        ```
-    *   You should see: `{"ok":true, "result":true, "description":"Webhook was set"}`.
+### ⚡ Critical Settings
+Ensure these are set in Vercel:
+1.  `TELEGRAM_ADMIN_GROUP_ID`: `-1003825409576`
+2.  `SUPABASE_SERVICE_ROLE_KEY`: (From Supabase -> Settings -> API)
+
+### 🔗 Webhook Setup (Run Once)
+To wake up the bot:
+```
+https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://blood-vinllingili.vercel.app/api/webhook
+```
 
 ## 📂 Manuals
 User manuals are located in `manual/v2/index.html`. Open this file to access guides for Admins, Nurses, and the Public.
