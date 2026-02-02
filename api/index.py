@@ -2120,6 +2120,13 @@ async def telegram_webhook(request: Request):
 
 
 # Serve Index for Root and SPA Catch-All
+@app.get("/favicon.png")
+async def favicon():
+    file_path = os.path.join(dist_dir, "favicon.png")
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    return JSONResponse({"error": "Favicon not found"}, status_code=404)
+
 @app.get("/")
 @app.get("/{rest_of_path:path}")
 async def serve_spa(rest_of_path: str = ""):
