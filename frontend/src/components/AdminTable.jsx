@@ -215,7 +215,7 @@ export function AdminTable() {
                                     <TableCell className="py-1 md:py-4">
                                         <code className="text-xs bg-muted px-2 py-1 rounded">••••••••</code>
                                     </TableCell>
-                                    <TableCell className="py-1 md:py-4">{new Date(admin.created_at).toLocaleDateString()}</TableCell>
+                                    <TableCell className="py-1 md:py-4">{new Date(admin.created_at).toLocaleDateString('en-GB').replace(/\//g, '-')}</TableCell>
                                     <TableCell className="text-right py-1 md:py-4">
                                         <div className="flex justify-end gap-2">
                                             <Button

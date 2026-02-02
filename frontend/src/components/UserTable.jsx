@@ -167,7 +167,7 @@ export function UserTable() {
                 cell: ({ row }) => {
                     const date = row.getValue('last_donation_date')
                     if (!date) return <span className="text-muted-foreground">-</span>
-                    return <span>{date}</span>
+                    return <span>{format(new Date(date), 'dd-MM-yyyy')}</span>
                 }
             },
             {
@@ -189,7 +189,7 @@ export function UserTable() {
                     return (
                         <div className="flex flex-col">
                             <span className={isEligible ? "text-green-600 font-bold" : "text-destructive"}>
-                                {format(nextDate, 'dd MMM yyyy')}
+                                {format(nextDate, 'dd-MM-yyyy')}
                             </span>
                             {isEligible && <span className="text-[10px] text-green-600 uppercase">Eligible</span>}
                         </div>

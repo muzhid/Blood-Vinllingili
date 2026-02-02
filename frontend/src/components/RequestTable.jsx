@@ -16,6 +16,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import { format } from "date-fns"
 
 export function RequestTable() {
     const [data, setData] = useState([])
@@ -104,7 +105,7 @@ export function RequestTable() {
             {
                 accessorKey: 'created_at',
                 header: 'Time',
-                cell: ({ row }) => new Date(row.getValue('created_at')).toLocaleString(),
+                cell: ({ row }) => format(new Date(row.getValue('created_at')), 'dd-MM-yyyy HH:mm'),
             },
         ],
         []
