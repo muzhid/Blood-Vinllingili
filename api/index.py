@@ -64,9 +64,22 @@ app.add_middleware(
 PENDING_SCANS = {}
 
 # --- SERVE FRONTEND (STATIC FILES) ---
+# --- SERVE FRONTEND (STATIC FILES) ---
 # Files are copied to 'static' folder next to this file during build
 base_dir = os.path.dirname(os.path.abspath(__file__))
-dist_dir = os.path.join(base_dir, "static")
+
+# Robustly find dist_dir (api/static)
+possible_static_dirs = [
+    os.path.join(base_dir, "static"),
+    os.path.join(os.getcwd(), "api", "static"),
+    os.path.join(base_dir, "..", "api", "static"),
+]
+dist_dir = os.path.join(base_dir, "static") # Default
+for d in possible_static_dirs:
+    if os.path.isdir(d) and (os.path.exists(os.path.join(d, "index.html")) or os.path.exists(os.path.join(d, "favicon.png"))):
+        dist_dir = d
+        print(f"Server: Found static dir at {dist_dir}")
+        break
 
 assets_dir = os.path.join(dist_dir, "assets")
 
@@ -2151,17 +2164,7 @@ async def serve_spa(rest_of_path: str = ""):
         if os.path.exists(path):
             return FileResponse(path)
 
-    # Debug info if not found
-    cwd = os.getcwd()
-    try:
-        dist_contents = os.listdir(dist_dir) if os.path.exists(dist_dir) else "OPEN_FAIL"
-    except:
-        dist_contents = "ERR"
-        
     return JSONResponse({
         "error": "Frontend Not Found", 
-        "searched_paths": possible_paths,
-        "cwd": cwd,
-        "dist_dir_exists": os.path.exists(dist_dir),
-        "dist_contents": dist_contents
+        "dist_dir": dist_dir
     }, status_code=404)
