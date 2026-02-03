@@ -157,7 +157,7 @@ def cron_expire():
         
         for req in active_reqs.data:
             created_at = datetime.fromisoformat(req["created_at"].replace('Z', '+00:00'))
-            if now - created_at > timedelta(minutes=30):
+            if now - created_at > timedelta(hours=24):
                 # Expire it
                 supabase.table("villingili_requests").update({"is_active": False}).eq("id", req["id"]).execute()
                 expired_count += 1
@@ -1795,19 +1795,16 @@ async def process_update(data):
                              import os
                              channel_id = os.environ.get("TELEGRAM_CHANNEL_ID")
                              if channel_id:
-                                 msg_text = (
-                                     f"🚨 <b>BLOOD REQUEST</b>\n"
-                                     f"Type: {blood_type}\n"
-                                     f"Location: {location}\n"
-                                     f"Urgency: {urgency}\n"
-                                     f"Requester: {user['full_name']}\n"
+                                 from .utils import format_blood_request_message
+                                 msg_text = format_blood_request_message(
+                                     blood_type,
+                                     location,
+                                     urgency,
+                                     user['full_name'],
+                                     user.get('phone_number')
                                  )
-                                 keyboard = {
-                                     "inline_keyboard": [[
-                                         {"text": "🙋♂️ I Can Help", "callback_data": f"help_{req_id}"}
-                                     ]]
-                                 }
-                                 sent = send_telegram_message(channel_id, msg_text, reply_markup=keyboard)
+
+                                 sent = send_telegram_message(channel_id, msg_text)
                                  if sent and sent.get("ok"):
                                      msg_id = sent["result"]["message_id"]
                                      supabase.table("villingili_requests").update({"telegram_message_id": msg_id}).eq("id", req_id).execute()
@@ -1905,12 +1902,7 @@ async def process_update(data):
                      user_data['full_name'], 
                      user_data['phone_number']
                  )
-                 keyboard = {
-                      "inline_keyboard": [[
-                          {"text": "🙋♂️ I Can Help", "callback_data": f"help_{req_id}"}
-                      ]]
-                 }
-                 sent = send_telegram_message(chat_id, msg_text, reply_markup=keyboard)
+                 sent = send_telegram_message(chat_id, msg_text)
                  
                  if sent and sent.get("ok"):
                      msg_id = sent["result"]["message_id"]
