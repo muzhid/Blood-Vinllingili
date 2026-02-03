@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { fetchWithAuth } from '@/lib/auth'
 import { Save, Eye, EyeOff } from 'lucide-react'
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -27,9 +28,9 @@ export function Settings() {
 
     const fetchSettings = async () => {
         try {
-            const res = await fetch('/api/settings', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-            })
+            const res = await fetchWithAuth('/api/settings')
+            if (!res) return
+
             const data = await res.json()
             setSettings({
                 TELEGRAM_BOT_TOKEN: data.TELEGRAM_BOT_TOKEN || '',
@@ -52,14 +53,12 @@ export function Settings() {
     const handleSave = async () => {
         setSaving(true)
         try {
-            const res = await fetch('/api/settings', {
+            const res = await fetchWithAuth('/api/settings', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
                 body: JSON.stringify(settings)
             })
+            if (!res) return
+
             const result = await res.json()
             if (result.status === 'ok') {
                 toast.success(result.message)

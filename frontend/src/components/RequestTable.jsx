@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { fetchWithAuth } from '@/lib/auth'
 import {
     useReactTable,
     getCoreRowModel,
@@ -29,9 +30,9 @@ export function RequestTable() {
 
     const fetchRequests = async () => {
         try {
-            const res = await fetch('/api/requests', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-            })
+            const res = await fetchWithAuth('/api/requests')
+            if (!res) return
+
             const requests = await res.json()
             if (!res.ok) throw new Error("Failed to fetch requests")
 

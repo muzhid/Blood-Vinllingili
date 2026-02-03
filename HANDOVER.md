@@ -10,7 +10,7 @@
 ### 1. Start the Bot & API
 Double-click `start_bot.bat`. 
 This will open two windows:
-1. **API Server** (FastAPI)
+1. **API Server** (FastAPI) running on **Port 8001** (to avoid conflicts).
 2. **Telegram Bot** (Polling Mode)
 
 ### 2. Start the Frontend (Optional)
@@ -19,6 +19,7 @@ If you want to view the web dashboard:
 cd frontend
 npm run dev
 ```
+*Note: Make sure `vite.config.js` proxy targets port 8001.*
 
 ## Configuration
 All settings are in the `.env` file.
@@ -50,6 +51,10 @@ A mobile-friendly, printable user guide is available.
 - **Note**: The "I Can Help" button has been removed as per request.
 
 ## ✅ Recent Fixes
+- **Mobile Cards**: Implemented responsive card layout for Request, User, and Admin tables.
+- **Request Expiration**: Increased request expiration time from 30 minutes to **24 hours**.
+- **Telegram Update**: Removed "I Can Help" button and standardized typed request messages.
+- **Port Conflict**: Backend moved to port 8001.
 - Removed stale debug prints from `api/index.py`.
 - Fixed mobile scrolling issues in the Dashboard tables.
 - Standardized database table names (`villingili_...`).

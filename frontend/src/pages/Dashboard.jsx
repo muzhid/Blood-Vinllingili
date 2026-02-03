@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchWithAuth } from '@/lib/auth'
 import { LogOut, Users, Activity, Settings as SettingsIcon, Menu, Lock, PanelLeft } from 'lucide-react'
 import { Separator } from "@/components/ui/separator"
 import { useNavigate } from 'react-router-dom'
@@ -69,14 +70,11 @@ export default function Dashboard() {
         }
 
         try {
-            const res = await fetch('/api/update_password', {
+            const res = await fetchWithAuth('/api/update_password', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
                 body: JSON.stringify({ username: user.phone_number || user.username, new_password: newPass })
             })
+            if (!res) return
             const data = await res.json()
             if (data.status === 'ok') {
                 toast.success('Password updated successfully!')
