@@ -21,7 +21,7 @@ from fastapi import Depends, HTTPException, status
 # Security Config
 SECRET_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") # Using Service Key as Secret implies robust secret, or use a dedicated one.
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 4320
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()

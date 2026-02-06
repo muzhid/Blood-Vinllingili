@@ -74,9 +74,9 @@ export function UserTable() {
             if (!res.ok) throw new Error("Failed to fetch users")
 
             setData(users)
+            setLoading(false)
         } catch (error) {
             console.error('Error fetching users:', error)
-        } finally {
             setLoading(false)
         }
     }

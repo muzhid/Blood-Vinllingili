@@ -19,8 +19,8 @@ export const fetchWithAuth = async (url, options = {}) => {
         headers,
     })
 
-    // 4. Intercept 401 (Unauthorized)
-    if (response.status === 401) {
+    // 4. Intercept 401 (Unauthorized) or 403 (Forbidden)
+    if (response.status === 401 || response.status === 403) {
         console.warn("Session expired. Logging out.")
         // Clear Storage
         localStorage.removeItem('admin_user')

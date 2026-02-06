@@ -37,9 +37,9 @@ export function RequestTable() {
             if (!res.ok) throw new Error("Failed to fetch requests")
 
             setData(requests)
+            setLoading(false)
         } catch (error) {
             console.error('Error fetching requests:', error)
-        } finally {
             setLoading(false)
         }
     }

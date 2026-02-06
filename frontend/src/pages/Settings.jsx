@@ -39,9 +39,9 @@ export function Settings() {
                 SUPABASE_URL: data.SUPABASE_URL || '',
                 SUPABASE_KEY: data.SUPABASE_KEY || ''
             })
+            setLoading(false)
         } catch (error) {
             toast.error('Failed to fetch settings')
-        } finally {
             setLoading(false)
         }
     }
